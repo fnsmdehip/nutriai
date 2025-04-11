@@ -1,0 +1,64 @@
+{
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
+    "format": "prettier --write \"app/**/*.{js,jsx,ts,tsx}\"",
+    "validate": "npm run lint && npm run typecheck",
+    "prepare": "husky",
+    "fix:types": "node fix-type-issues.js",
+    "update:theme": "node update-theme-imports.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "devDependencies": {
+    "@react-native-community/cli": "^18.0.0",
+    "@react-navigation/bottom-tabs": "^7.3.10",
+    "@react-navigation/native": "^7.1.6",
+    "@react-navigation/stack": "^7.2.10",
+    "@types/react": "^18.3.12",
+    "@types/react-native": "^0.72.8",
+    "@types/react-native-vector-icons": "^6.4.18",
+    "@types/react-navigation": "^3.0.8",
+    "@types/react-redux": "^7.1.34",
+    "@typescript-eslint/eslint-plugin": "^8.29.1",
+    "@typescript-eslint/parser": "^8.29.1",
+    "eslint": "^9.24.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-native": "^5.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
+    "@react-native-picker/picker": "^2.9.0",
+    "@reduxjs/toolkit": "^2.6.1",
+    "@types/uuid": "^10.0.0",
+    "expo": "~52.0.43",
+    "expo-camera": "^16.0.18",
+    "expo-image-picker": "^16.0.6",
+    "expo-linear-gradient": "^14.0.2",
+    "expo-updates": "^0.27.4",
+    "react": "^18.3.1",
+    "react-native": "^0.76.9",
+    "react-native-dotenv": "^3.4.11",
+    "react-native-reanimated": "^3.16.1",
+    "uuid": "^11.1.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "name": "Nutri AI",
+  "version": "1.0.0"
+}

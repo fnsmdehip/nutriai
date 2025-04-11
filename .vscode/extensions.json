@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+    "styled-components.vscode-styled-components",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense",
+    "dsznajder.es7-react-js-snippets",
+    "VisualStudioExptTeam.vscodeintellicode",
+    "github.github-vscode-theme",
+    "eamodio.gitlens"
+  ]
+} 
