@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - '${PORT:-3001}:${PORT:-3001}' # Map host port to container port using env var or default
+    volumes:
+      - /app/node_modules # Don't mount host node_modules over container's
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # --- Database Environment Variables ---
+      - DATABASE_URL=postgresql://user:password@db:5432/nutridb
+      # --- JWT Secret ---
+      - JWT_SECRET=aBcD3fGhJkL6mN0pQrStUvWxYz1a2B4c5D6e7F8g9H0j
+      # --- Google AI Key ---
+      - GOOGLE_AI_API_KEY=AIzaSyB7rriQ5f0BeQAOyOCOvPEpSmKXfm5ia8o
+    depends_on:
+      - db
+      - cache
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nutridb}
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5432:5432' # Expose DB port only if needed externally
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist data
+
+  cache:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379' # Expose Redis port only if needed externally
+    volumes:
+      - redis_data:/data # Persist data
+
+volumes:
+  postgres_data:
+  redis_data:

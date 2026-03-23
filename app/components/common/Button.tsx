@@ -1,23 +1,16 @@
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ViewStyle,
-  TextStyle,
-  TouchableOpacityProps,
-} from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
 import { Theme } from '../../utils/theme';
 
-interface ButtonProps extends TouchableOpacityProps {
+interface ButtonProps {
   title: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'text';
   size?: 'small' | 'medium' | 'large';
-  isLoading?: boolean;
+  fullWidth?: boolean;
   disabled?: boolean;
-  containerStyle?: ViewStyle;
+  loading?: boolean;
+  style?: ViewStyle;
   textStyle?: TextStyle;
 }
 
@@ -26,66 +19,122 @@ const Button: React.FC<ButtonProps> = ({
   onPress,
   variant = 'primary',
   size = 'medium',
-  isLoading = false,
+  fullWidth = false,
   disabled = false,
-  containerStyle,
+  loading = false,
+  style,
   textStyle,
-  ...props
 }) => {
-  // Determine button styles based on variant
-  const buttonStyles = [
-    styles.container,
-    styles[`${variant}Container`],
-    styles[`${size}Container`],
-    disabled && styles.disabledContainer,
-    containerStyle,
-  ];
+  // Get button container style based on variant
+  const getContainerStyle = () => {
+    switch (variant) {
+      case 'primary':
+        return styles.primaryContainer;
+      case 'secondary':
+        return styles.secondaryContainer;
+      case 'outline':
+        return styles.outlineContainer;
+      case 'text':
+        return styles.textContainer;
+      default:
+        return styles.primaryContainer;
+    }
+  };
 
-  // Determine text styles based on variant
-  const textStyles = [
-    styles.text,
-    styles[`${variant}Text`],
-    styles[`${size}Text`],
-    disabled && styles.disabledText,
-    textStyle,
-  ];
+  // Get text style based on variant
+  const getTextStyle = () => {
+    switch (variant) {
+      case 'primary':
+        return styles.primaryText;
+      case 'secondary':
+        return styles.secondaryText;
+      case 'outline':
+        return styles.outlineText;
+      case 'text':
+        return styles.textText;
+      default:
+        return styles.primaryText;
+    }
+  };
+
+  // Get button size style
+  const getSizeStyle = (): ViewStyle => {
+    switch (size) {
+      case 'small':
+        return styles.smallButton;
+      case 'large':
+        return styles.largeButton;
+      default:
+        return styles.mediumButton;
+    }
+  };
+
+  // Get text size style
+  const getTextSizeStyle = (): TextStyle => {
+    switch (size) {
+      case 'small':
+        return styles.smallText;
+      case 'large':
+        return styles.largeText;
+      default:
+        return styles.mediumText;
+    }
+  };
 
   return (
     <TouchableOpacity
-      style={buttonStyles}
+      style={[
+        styles.button,
+        getContainerStyle(),
+        getSizeStyle(),
+        fullWidth && styles.fullWidth,
+        disabled && styles.disabledContainer,
+        style,
+      ]}
       onPress={onPress}
-      disabled={disabled || isLoading}
+      disabled={disabled || loading}
       activeOpacity={0.8}
-      {...props}
     >
-      {isLoading ? (
+      {loading ? (
         <ActivityIndicator
+          color={variant === 'outline' || variant === 'text' ? Theme.colors.primary : 'white'}
           size="small"
-          color={
-            variant === 'primary'
-              ? Theme.colors.background
-              : Theme.colors.primary
-          }
         />
       ) : (
-        <Text style={textStyles}>{title}</Text>
+        <Text
+          style={[
+            styles.text,
+            getTextStyle(),
+            getTextSizeStyle(),
+            disabled && styles.disabledText,
+            textStyle,
+          ]}
+        >
+          {title}
+        </Text>
       )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  button: {
     borderRadius: Theme.border.radius.medium,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Theme.shadow.small,
   },
-  // Variant styles - Container
+  fullWidth: {
+    width: '100%',
+  },
+  // Variant styles - containers
   primaryContainer: {
     backgroundColor: Theme.colors.primary,
+    borderWidth: 0,
   },
   secondaryContainer: {
-    backgroundColor: Theme.colors.card,
+    backgroundColor: Theme.colors.secondary,
+    borderWidth: 0,
   },
   outlineContainer: {
     backgroundColor: 'transparent',
@@ -94,36 +143,19 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     backgroundColor: 'transparent',
+    borderWidth: 0,
+    ...Theme.shadow.none,
   },
-  // Size styles - Container
-  smallContainer: {
-    paddingVertical: Theme.spacing.xs,
-    paddingHorizontal: Theme.spacing.m,
-  },
-  mediumContainer: {
-    paddingVertical: Theme.spacing.m,
-    paddingHorizontal: Theme.spacing.l,
-  },
-  largeContainer: {
-    paddingVertical: Theme.spacing.l,
-    paddingHorizontal: Theme.spacing.xl,
-  },
-  // Disabled state
-  disabledContainer: {
-    backgroundColor: Theme.colors.disabled,
-    borderColor: Theme.colors.disabled,
-  },
-  // Text styles
+  // Variant styles - text
   text: {
     fontWeight: '600',
     textAlign: 'center',
   },
-  // Variant styles - Text
   primaryText: {
-    color: '#FFFFFF',
+    color: 'white',
   },
   secondaryText: {
-    color: Theme.colors.text,
+    color: 'white',
   },
   outlineText: {
     color: Theme.colors.primary,
@@ -131,17 +163,36 @@ const styles = StyleSheet.create({
   textText: {
     color: Theme.colors.primary,
   },
-  // Size styles - Text
+  // Size styles - containers
+  smallButton: {
+    paddingVertical: Theme.spacing.xs,
+    paddingHorizontal: Theme.spacing.md,
+    minHeight: 32,
+  },
+  mediumButton: {
+    paddingVertical: Theme.spacing.sm,
+    paddingHorizontal: Theme.spacing.lg,
+    minHeight: 44,
+  },
+  largeButton: {
+    paddingVertical: Theme.spacing.md,
+    paddingHorizontal: Theme.spacing.xl,
+    minHeight: 56,
+  },
+  // Size styles - text
   smallText: {
-    fontSize: Theme.typography.fontSize.small,
+    fontSize: Theme.typography.fontSize.sm,
   },
   mediumText: {
-    fontSize: Theme.typography.fontSize.medium,
+    fontSize: Theme.typography.fontSize.md,
   },
   largeText: {
-    fontSize: Theme.typography.fontSize.large,
+    fontSize: Theme.typography.fontSize.lg,
   },
-  // Disabled state
+  // Disabled styles
+  disabledContainer: {
+    opacity: Theme.opacity.disabled,
+  },
   disabledText: {
     color: Theme.colors.textSecondary,
   },

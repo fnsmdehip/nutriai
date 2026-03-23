@@ -1,112 +1,90 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-// Define types for subscription state
-export type SubscriptionPlan = 'monthly' | 'yearly' | 'none';
+export type SubscriptionTier = 'free' | 'monthly' | 'yearly' | 'lifetime';
 
 export interface SubscriptionState {
-  isSubscribed: boolean;
-  plan: SubscriptionPlan;
-  trialEndDate: string | null;
-  isInTrial: boolean;
-  hasSeenSpecialOffer: boolean;
-  showSpecialOffer: boolean;
-  subscriptionStartDate: string | null;
-  subscriptionEndDate: string | null;
-  hasBeenOfferedTrial: boolean;
-  hasDeclinedTrial: boolean;
+  tier: SubscriptionTier;
+  isPremium: boolean;
+  dailyScansUsed: number;
+  dailyScanLimit: number;
+  lastScanResetDate: string; // ISO date string
+  foodScansCompleted: number; // total scans since install, for interstitial ad pacing
+  isLoading: boolean;
+  error: string | null;
 }
 
-// Initial state
+const todayIsoDate = new Date().toISOString().split('T')[0];
+
 const initialState: SubscriptionState = {
-  isSubscribed: false,
-  plan: 'none',
-  trialEndDate: null,
-  isInTrial: false,
-  hasSeenSpecialOffer: false,
-  showSpecialOffer: false,
-  subscriptionStartDate: null,
-  subscriptionEndDate: null,
-  hasBeenOfferedTrial: false,
-  hasDeclinedTrial: false,
+  tier: 'free',
+  isPremium: false,
+  dailyScansUsed: 0,
+  dailyScanLimit: 3,
+  lastScanResetDate: todayIsoDate,
+  foodScansCompleted: 0,
+  isLoading: false,
+  error: null,
 };
 
-// Create the slice
 const subscriptionSlice = createSlice({
   name: 'subscription',
   initialState,
   reducers: {
-    // Trial management
-    startTrial: (state) => {
-      state.isInTrial = true;
-      
-      // Set trial end date to 3 days from now
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 3);
-      state.trialEndDate = endDate.toISOString();
-      
-      state.hasBeenOfferedTrial = true;
-    },
-    endTrial: (state) => {
-      state.isInTrial = false;
-    },
-    declineTrial: (state) => {
-      state.hasDeclinedTrial = true;
-      state.hasBeenOfferedTrial = true;
-    },
-    
-    // Subscription management
-    setSubscription: (state, action: PayloadAction<{ plan: SubscriptionPlan; startDate: string }>) => {
-      state.isSubscribed = action.payload.plan !== 'none';
-      state.plan = action.payload.plan;
-      state.subscriptionStartDate = action.payload.startDate;
-      
-      // Calculate end date based on plan
-      if (action.payload.plan !== 'none') {
-        const endDate = new Date(action.payload.startDate);
-        if (action.payload.plan === 'monthly') {
-          endDate.setMonth(endDate.getMonth() + 1);
-        } else if (action.payload.plan === 'yearly') {
-          endDate.setFullYear(endDate.getFullYear() + 1);
-        }
-        state.subscriptionEndDate = endDate.toISOString();
+    setSubscriptionTier: (state, action: PayloadAction<SubscriptionTier>) => {
+      state.tier = action.payload;
+      state.isPremium = action.payload !== 'free';
+      if (state.isPremium) {
+        state.dailyScanLimit = Infinity;
       } else {
-        state.subscriptionEndDate = null;
+        state.dailyScanLimit = 3;
       }
     },
-    cancelSubscription: (state) => {
-      // Keep the subscription active until the end date
-      // but mark it as not renewing by maintaining the end date
-    },
-    
-    // Special offer management
-    showSpecialOffer: (state) => {
-      if (!state.hasSeenSpecialOffer) {
-        state.showSpecialOffer = true;
+    setPremiumStatus: (state, action: PayloadAction<boolean>) => {
+      state.isPremium = action.payload;
+      if (action.payload) {
+        state.dailyScanLimit = Infinity;
+      } else {
+        state.tier = 'free';
+        state.dailyScanLimit = 3;
       }
     },
-    hideSpecialOffer: (state) => {
-      state.showSpecialOffer = false;
-      state.hasSeenSpecialOffer = true;
+    incrementDailyScans: (state) => {
+      const today = new Date().toISOString().split('T')[0];
+      if (state.lastScanResetDate !== today) {
+        state.dailyScansUsed = 1;
+        state.lastScanResetDate = today;
+      } else {
+        state.dailyScansUsed += 1;
+      }
+      state.foodScansCompleted += 1;
     },
-    acceptSpecialOffer: (state) => {
-      state.showSpecialOffer = false;
-      state.hasSeenSpecialOffer = true;
-      
-      // Will be followed by a setSubscription call to actually set the subscription
+    addBonusScan: (state) => {
+      // Rewarded ad grants one extra scan for the day
+      if (state.dailyScansUsed > 0) {
+        state.dailyScansUsed -= 1;
+      }
+    },
+    resetDailyScans: (state) => {
+      state.dailyScansUsed = 0;
+      state.lastScanResetDate = new Date().toISOString().split('T')[0];
+    },
+    setSubscriptionLoading: (state, action: PayloadAction<boolean>) => {
+      state.isLoading = action.payload;
+    },
+    setSubscriptionError: (state, action: PayloadAction<string | null>) => {
+      state.error = action.payload;
     },
   },
 });
 
-// Export actions and reducer
 export const {
-  startTrial,
-  endTrial,
-  declineTrial,
-  setSubscription,
-  cancelSubscription,
-  showSpecialOffer,
-  hideSpecialOffer,
-  acceptSpecialOffer,
+  setSubscriptionTier,
+  setPremiumStatus,
+  incrementDailyScans,
+  addBonusScan,
+  resetDailyScans,
+  setSubscriptionLoading,
+  setSubscriptionError,
 } = subscriptionSlice.actions;
 
-export default subscriptionSlice.reducer; 
+export default subscriptionSlice.reducer;

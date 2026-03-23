@@ -7,9 +7,9 @@
     "icon": "./app/assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./app/assets/splash.png",
+      "image": "./app/assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F8F5F0"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -22,13 +22,19 @@
         "NSCameraUsageDescription": "Nutri AI uses the camera to take pictures of food for nutrition analysis",
         "NSPhotoLibraryUsageDescription": "Nutri AI needs access to your photos to analyze food images",
         "UIRequiresFullScreen": true,
-        "UIStatusBarHidden": false
+        "UIStatusBarHidden": false,
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
+          }
+        ],
+        "GADApplicationIdentifier": "ca-app-pub-5277873663568466~6431629011"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./app/assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F8F5F0"
       },
       "package": "com.nutriai.app",
       "versionCode": 1,
@@ -36,20 +42,20 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "com.google.android.gms.permission.AD_ID"
       ]
     },
     "web": {
       "favicon": "./app/assets/favicon.png"
     },
+    "scheme": "nutriai",
     "extra": {
       "eas": {
         "projectId": "04c7bff1-f241-49d8-9c24-b4ee680c1579"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "enabled": true,
       "fallbackToCacheTimeout": 0
@@ -64,8 +70,21 @@
             "checkAutomatically": "ON_LOAD"
           }
         }
+      ],
+      "expo-dev-client",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-5277873663568466~6431629011",
+          "iosAppId": "ca-app-pub-5277873663568466~6431629011"
+        }
       ]
     ],
-    "owner": "fnsmdehip"
+    "owner": "fnsmdehip",
+    "sdkVersion": "48.0.0",
+    "appVersionSource": "expo-updates",
+    "cli": {
+      "appVersionSource": "local"
+    }
   }
 }

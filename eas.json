@@ -8,10 +8,14 @@
       "distribution": "internal",
       "ios": {
         "simulator": true,
-        "resourceClass": "m1-medium"
+        "resourceClass": "m1-medium",
+        "buildConfiguration": "Debug"
       },
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://your-dev-api.example.com"
       }
     },
     "quick-test": {

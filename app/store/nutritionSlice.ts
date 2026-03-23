@@ -1,137 +1,92 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-// Types
-export interface FoodItem {
+export interface Food {
   id: string;
   name: string;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
-  imageUrl?: string | null;
-  timestamp: string;
-  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  imageUrl?: string;
+  timestamp: number;
 }
 
-export interface NutritionGoals {
-  dailyCalories: number;
-  dailyProtein: number;
-  dailyCarbs: number;
-  dailyFat: number;
+interface NutritionState {
+  dailyGoal: {
+    calories: number;
+    protein: number; // in grams
+    carbs: number; // in grams
+    fat: number; // in grams
+  };
+  consumedItems: {
+    [date: string]: Food[];
+  };
+  processing: boolean;
+  processingStatus: string;
+  activeDate: string; // ISO date string
 }
 
-export interface NutritionState {
-  foods: FoodItem[];
-  goals: NutritionGoals;
-  photoProcessing: boolean;
-  loading: boolean;
-  error: string | null;
-}
+const todayIsoDate = new Date().toISOString().split('T')[0];
 
 const initialState: NutritionState = {
-  foods: [],
-  goals: {
-    dailyCalories: 2000,
-    dailyProtein: 150,
-    dailyCarbs: 200,
-    dailyFat: 65,
+  dailyGoal: {
+    calories: 2000,
+    protein: 150,
+    carbs: 200,
+    fat: 70,
   },
-  photoProcessing: false,
-  loading: false,
-  error: null,
+  consumedItems: {
+    [todayIsoDate]: [],
+  },
+  processing: false,
+  processingStatus: '',
+  activeDate: todayIsoDate,
 };
 
 const nutritionSlice = createSlice({
   name: 'nutrition',
   initialState,
   reducers: {
-    // Add a new food item
-    addFood: (state, action: PayloadAction<FoodItem>) => {
-      state.foods.push(action.payload);
+    setDailyGoal: (state, action: PayloadAction<{ calories: number; protein: number; carbs: number; fat: number }>) => {
+      state.dailyGoal = action.payload;
     },
-    
-    // Update an existing food item
-    updateFood: (state, action: PayloadAction<FoodItem>) => {
-      const index = state.foods.findIndex(food => food.id === action.payload.id);
-      if (index !== -1) {
-        state.foods[index] = action.payload;
+    addConsumedItem: (state, action: PayloadAction<Food>) => {
+      const date = state.activeDate;
+      if (!state.consumedItems[date]) {
+        state.consumedItems[date] = [];
+      }
+      state.consumedItems[date].push(action.payload);
+    },
+    removeConsumedItem: (state, action: PayloadAction<string>) => {
+      const date = state.activeDate;
+      if (state.consumedItems[date]) {
+        state.consumedItems[date] = state.consumedItems[date].filter(
+          (item) => item.id !== action.payload
+        );
       }
     },
-    
-    // Delete a food item
-    deleteFood: (state, action: PayloadAction<string>) => {
-      state.foods = state.foods.filter(food => food.id !== action.payload);
+    setProcessing: (state, action: PayloadAction<boolean>) => {
+      state.processing = action.payload;
     },
-    
-    // Update nutrition goals
-    updateGoals: (state, action: PayloadAction<Partial<NutritionGoals>>) => {
-      state.goals = { ...state.goals, ...action.payload };
+    setProcessingStatus: (state, action: PayloadAction<string>) => {
+      state.processingStatus = action.payload;
     },
-    
-    // Clear all food data
-    clearFoods: (state) => {
-      state.foods = [];
-    },
-    
-    // Start photo processing
-    startPhotoProcessing: (state) => {
-      state.photoProcessing = true;
-    },
-    
-    // Finish photo processing
-    finishPhotoProcessing: (state) => {
-      state.photoProcessing = false;
-    },
-    
-    // Set loading state
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.loading = action.payload;
-    },
-    
-    // Set error state
-    setError: (state, action: PayloadAction<string | null>) => {
-      state.error = action.payload;
+    setActiveDate: (state, action: PayloadAction<string>) => {
+      state.activeDate = action.payload;
+      if (!state.consumedItems[action.payload]) {
+        state.consumedItems[action.payload] = [];
+      }
     },
   },
 });
 
-// Export actions
 export const {
-  addFood,
-  updateFood,
-  deleteFood,
-  updateGoals,
-  clearFoods,
-  startPhotoProcessing,
-  finishPhotoProcessing,
-  setLoading,
-  setError,
+  setDailyGoal,
+  addConsumedItem,
+  removeConsumedItem,
+  setProcessing,
+  setProcessingStatus,
+  setActiveDate,
 } = nutritionSlice.actions;
-
-// Export selectors
-export const selectAllFoods = (state: { nutrition: NutritionState }) => state.nutrition.foods;
-
-export const selectFoodById = (state: { nutrition: NutritionState }, id: string) => 
-  state.nutrition.foods.find(food => food.id === id);
-
-export const selectTodaysFoods = (state: { nutrition: NutritionState }) => {
-  const today = new Date().toISOString().split('T')[0];
-  return state.nutrition.foods.filter(food => food.timestamp.startsWith(today));
-};
-
-export const selectNutritionGoals = (state: { nutrition: NutritionState }) => state.nutrition.goals;
-
-export const selectPhotoProcessing = (state: { nutrition: NutritionState }) => state.nutrition.photoProcessing;
-
-export const selectDailyNutritionTotals = (state: { nutrition: NutritionState }) => {
-  const todaysFoods = selectTodaysFoods(state);
-  
-  return {
-    calories: todaysFoods.reduce((sum, food) => sum + food.calories, 0),
-    protein: todaysFoods.reduce((sum, food) => sum + food.protein, 0),
-    carbs: todaysFoods.reduce((sum, food) => sum + food.carbs, 0),
-    fat: todaysFoods.reduce((sum, food) => sum + food.fat, 0),
-  };
-};
 
 export default nutritionSlice.reducer; 

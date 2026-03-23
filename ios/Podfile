@@ -1,74 +1,96 @@
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
+require File.join(File.dirname(`node --print "require.resolve('@react-native-community/cli-platform-ios/package.json')"`), "native_modules")
 
 require 'json'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
 
 ENV['RCT_NEW_ARCH_ENABLED'] = podfile_properties['newArchEnabled'] == 'true' ? '1' : '0'
-ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
+ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = '1' if podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR'] == 'true'
 
-platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '14.0'
 install! 'cocoapods',
   :deterministic_uuids => false
 
 prepare_react_native_project!
 
-# Force pods to match minimum iOS version for React Native
-# Fixes build issue on Xcode Cloud where some pods
-# Use iOS 12 calls despite being set as iOS 11
-def __apply_Xcode_14_3_RC_post_install_workaround(installer)
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      current_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
-      minimum_target = '15.1'
-      if current_target.to_f < minimum_target.to_f
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum_target
-      end
-    end
-  end
-end
+# Flipper is not supported on Fabric yet.
+# We recommend using the DevMenu instead of Flipper.
+# https://reactnative.dev/docs/debugging#devtools
+#
+# flipper_config = FlipperConfiguration.disabled
+# if ENV['NO_FLIPPER'] == '1' then
+#   # Explicitly disabled through environment variables
+#   flipper_config = FlipperConfiguration.disabled
+# elsif podfile_properties.key?('ios.flipper') then
+#   # Configure Flipper in Podfile.properties.json
+#   if podfile_properties['ios.flipper'] == 'true' then
+#     flipper_config = FlipperConfiguration.enabled(["Debug", "Release"])
+#   elsif podfile_properties['ios.flipper'] != 'false' then
+#     flipper_config = FlipperConfiguration.enabled(["Debug", "Release"], { 'Flipper' => podfile_properties['ios.flipper'] })
+#   end
+# end
 
 target 'NutriAI' do
+  use_expo_modules!
   config = use_native_modules!
+
+  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
 
   # Flags change depending on the env values.
   flags = get_default_flags()
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # Hermes is now enabled by default. Disable by setting this flag to false.
-    :hermes_enabled => flags[:hermes_enabled],
+    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
     :fabric_enabled => flags[:fabric_enabled],
     # An absolute path to your application root.
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    # Note that if you have use_frameworks! enabled, Flipper will not work if enabled
+    #:flipper_configuration => flipper_config # Comment out usage as well
   )
 
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
+    # Set minimum deployment target for all pods
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+      end
+    end
+    
+    # Add fonts for react-native-vector-icons
+    fonts_dir = File.join(File.dirname(`node --print "require.resolve('react-native-vector-icons/package.json')"`), 'Fonts')
+    font_files = Dir[File.join(fonts_dir, '*.ttf')]
+    font_files.each do |font_file|
+      font_name = File.basename(font_file)
+      system("cp \"#{font_file}\" \"#{Pod::Config.instance.installation_root}/..\"/ios/NutriAI/") if !File.exist?(File.join("#{Pod::Config.instance.installation_root}/..\"/ios/NutriAI/", font_name))
+    end
+    
     react_native_post_install(
       installer,
       config[:reactNativePath],
+      # Set `mac_catalyst_enabled` to `true` in order to apply patches
+      # necessary for Mac Catalyst builds
       :mac_catalyst_enabled => false
     )
-    __apply_Xcode_14_3_RC_post_install_workaround(installer)
-    
-    # Handle spaces in paths
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        # Only apply gsub if the value is not nil
-        if config.build_settings['CONFIGURATION_BUILD_DIR']
-          config.build_settings['CONFIGURATION_BUILD_DIR'] = config.build_settings['CONFIGURATION_BUILD_DIR'].gsub(' ', '\\ ')
-        end
-        config.build_settings['FRAMEWORK_SEARCH_PATHS'] = '$(inherited) ${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/universal'
-      end
-      
-      if target.name == 'ReactCodegen'
-        target.build_phases.each do |build_phase|
-          if build_phase.respond_to?(:shell_script) && build_phase.shell_script.include?("Generate Specs")
-            build_phase.shell_script = build_phase.shell_script.gsub('$PODS_ROOT/..', '$PODS_ROOT/../..')
-          end
+    # __apply_Xcode_12_5_M1_post_install_workaround(installer) # Obsolete workaround
+
+    # This is necessary for Xcode 14, because it signs resource bundles by default
+    installer.target_installation_results.pod_target_installation_results
+      .each do |pod_name, target_installation_result|
+      target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
+        resource_bundle_target.build_configurations.each do |config|
+          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
         end
       end
+    end
+  end
+
+  post_integrate do |installer|
+    begin
+      expo_patch_react_imports!(installer)
+    rescue => e
+      Pod::UI.warn e
     end
   end
 end

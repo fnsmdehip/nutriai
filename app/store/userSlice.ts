@@ -1,149 +1,91 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-// Define types for user state
-export interface UserMetrics {
-  gender: 'male' | 'female' | 'other' | null;
-  workoutFrequency: '0-2' | '3-5' | '6+' | null;
-  weight: number | null;
-  height: number | null;
-  birthdate: string | null;
-  goal: 'lose' | 'maintain' | 'gain' | null;
-  dietType: 'classic' | 'pescatarian' | 'vegetarian' | 'vegan' | null;
-  obstacles: string[];
-  aims: string[];
-  usesMetricSystem: boolean;
-}
-
-export interface OnboardingState {
-  step: number;
-  totalSteps: number;
-  completed: boolean;
-}
-
-export interface UserState {
+interface UserState {
   isAuthenticated: boolean;
-  userId: string | null;
-  email: string | null;
-  metrics: UserMetrics;
-  onboarding: OnboardingState;
   hasCompletedOnboarding: boolean;
-  healthConnected: boolean;
+  userProfile: {
+    gender: 'male' | 'female' | 'other' | null;
+    birthdate: string | null;
+    height: number | null;
+    weight: number | null;
+    workoutFrequency: '0-2' | '3-5' | '6+' | null;
+    goal: 'lose' | 'maintain' | 'gain' | null;
+    dietType: 'regular' | 'pescatarian' | 'vegetarian' | 'vegan' | null;
+  };
+  onboardingProgress: number;
 }
 
-// Initial state
 const initialState: UserState = {
-  isAuthenticated: true,
-  userId: 'test-user-id',
-  email: 'test@example.com',
-  metrics: {
-    gender: 'male',
-    workoutFrequency: '3-5',
-    weight: 70,
-    height: 175,
-    birthdate: '1990-01-01',
-    goal: 'maintain',
-    dietType: 'classic',
-    obstacles: [],
-    aims: [],
-    usesMetricSystem: true,
+  isAuthenticated: false,
+  hasCompletedOnboarding: false,
+  userProfile: {
+    gender: null,
+    birthdate: null,
+    height: null,
+    weight: null,
+    workoutFrequency: null,
+    goal: null,
+    dietType: null,
   },
-  onboarding: {
-    step: 10,
-    totalSteps: 10,
-    completed: true,
-  },
-  hasCompletedOnboarding: true,
-  healthConnected: false,
+  onboardingProgress: 0,
 };
 
-// Create the slice
 const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    // Authentication
-    setAuthenticated: (state, action: PayloadAction<{ userId: string; email: string }>) => {
+    login: (state) => {
       state.isAuthenticated = true;
-      state.userId = action.payload.userId;
-      state.email = action.payload.email;
     },
-    logout: state => {
-      return initialState;
+    logout: (state) => {
+      state.isAuthenticated = false;
     },
-
-    // Onboarding navigation
-    advanceOnboardingStep: state => {
-      if (state.onboarding.step < state.onboarding.totalSteps) {
-        state.onboarding.step += 1;
-      }
-
-      if (state.onboarding.step === state.onboarding.totalSteps) {
-        state.onboarding.completed = true;
-        state.hasCompletedOnboarding = true;
-      }
+    completeOnboarding: (state) => {
+      state.hasCompletedOnboarding = true;
     },
-    goBackOnboardingStep: state => {
-      if (state.onboarding.step > 1) {
-        state.onboarding.step -= 1;
-      }
-    },
-
-    // Metrics updates
-    setGender: (state, action: PayloadAction<UserMetrics['gender']>) => {
-      state.metrics.gender = action.payload;
-    },
-    setWorkoutFrequency: (state, action: PayloadAction<UserMetrics['workoutFrequency']>) => {
-      state.metrics.workoutFrequency = action.payload;
-    },
-    setWeight: (state, action: PayloadAction<number>) => {
-      state.metrics.weight = action.payload;
-    },
-    setHeight: (state, action: PayloadAction<number>) => {
-      state.metrics.height = action.payload;
+    setGender: (state, action: PayloadAction<'male' | 'female' | 'other'>) => {
+      state.userProfile.gender = action.payload;
     },
     setBirthdate: (state, action: PayloadAction<string>) => {
-      state.metrics.birthdate = action.payload;
+      state.userProfile.birthdate = action.payload;
     },
-    setGoal: (state, action: PayloadAction<UserMetrics['goal']>) => {
-      state.metrics.goal = action.payload;
+    setHeight: (state, action: PayloadAction<number>) => {
+      state.userProfile.height = action.payload;
     },
-    setDietType: (state, action: PayloadAction<UserMetrics['dietType']>) => {
-      state.metrics.dietType = action.payload;
+    setWeight: (state, action: PayloadAction<number>) => {
+      state.userProfile.weight = action.payload;
     },
-    toggleMetricSystem: state => {
-      state.metrics.usesMetricSystem = !state.metrics.usesMetricSystem;
+    setWorkoutFrequency: (state, action: PayloadAction<'0-2' | '3-5' | '6+' | null>) => {
+      state.userProfile.workoutFrequency = action.payload;
     },
-    setObstacles: (state, action: PayloadAction<string[]>) => {
-      state.metrics.obstacles = action.payload;
+    setGoal: (state, action: PayloadAction<'lose' | 'maintain' | 'gain' | null>) => {
+      state.userProfile.goal = action.payload;
     },
-    setAims: (state, action: PayloadAction<string[]>) => {
-      state.metrics.aims = action.payload;
+    setDietType: (state, action: PayloadAction<'regular' | 'pescatarian' | 'vegetarian' | 'vegan' | null>) => {
+      state.userProfile.dietType = action.payload;
     },
-
-    // Health connection
-    setHealthConnected: (state, action: PayloadAction<boolean>) => {
-      state.healthConnected = action.payload;
+    advanceOnboardingStep: (state) => {
+      state.onboardingProgress += 1;
+    },
+    setOnboardingProgress: (state, action: PayloadAction<number>) => {
+      state.onboardingProgress = action.payload;
     },
   },
 });
 
-// Export actions and reducer
 export const {
-  setAuthenticated,
+  login,
   logout,
-  advanceOnboardingStep,
-  goBackOnboardingStep,
+  completeOnboarding,
   setGender,
-  setWorkoutFrequency,
-  setWeight,
-  setHeight,
   setBirthdate,
+  setHeight,
+  setWeight,
+  setWorkoutFrequency,
   setGoal,
   setDietType,
-  toggleMetricSystem,
-  setObstacles,
-  setAims,
-  setHealthConnected,
+  advanceOnboardingStep,
+  setOnboardingProgress,
 } = userSlice.actions;
 
-export default userSlice.reducer;
+export default userSlice.reducer; 

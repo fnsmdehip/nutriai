@@ -9,10 +9,6 @@ export const store = configureStore({
     nutrition: nutritionReducer,
     subscription: subscriptionReducer,
   },
-  middleware: getDefaultMiddleware =>
-    getDefaultMiddleware({
-      serializableCheck: false,
-    }),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
