@@ -1,12 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  Alert,
+  Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,82 +14,60 @@ import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import { Theme } from '../utils/theme';
+import { haptics } from '../utils/haptics';
 import { useAppDispatch } from '../store/hooks';
 import { setSubscriptionTier, setSubscriptionLoading } from '../store/subscriptionSlice';
 import type { SubscriptionTier } from '../store/subscriptionSlice';
 
-type PlanKey = 'monthly' | 'yearly' | 'lifetime';
+type PlanKey = 'weekly' | 'yearly' | 'monthly';
 
 interface PlanDisplay {
   key: PlanKey;
   title: string;
   price: string;
   period: string;
-  perWeek: string;
-  savings: string | null;
+  perDay: string;
   badge: string | null;
-  highlighted: boolean;
+  trialText: string | null;
 }
 
 const PLANS: PlanDisplay[] = [
   {
-    key: 'monthly',
-    title: 'Monthly',
-    price: '$9.99',
-    period: '/month',
-    perWeek: '$2.50/week',
-    savings: null,
+    key: 'weekly',
+    title: 'Weekly',
+    price: '$2.99',
+    period: '/week',
+    perDay: '$0.43/day',
     badge: null,
-    highlighted: false,
+    trialText: null,
   },
   {
     key: 'yearly',
     title: 'Annual',
-    price: '$49.99',
+    price: '$29.99',
     period: '/year',
-    perWeek: '$0.96/week',
-    savings: 'Save 58%',
+    perDay: '$0.57/day',
     badge: 'BEST VALUE',
-    highlighted: true,
+    trialText: '7-day free trial',
   },
   {
-    key: 'lifetime',
-    title: 'Lifetime',
-    price: '$99.99',
-    period: 'one-time',
-    perWeek: 'Pay once, own forever',
-    savings: null,
+    key: 'monthly',
+    title: 'Monthly',
+    price: '$4.99',
+    period: '/month',
+    perDay: '$0.17/day',
     badge: null,
-    highlighted: false,
+    trialText: null,
   },
 ];
 
-const FEATURES: Array<{ icon: keyof typeof Ionicons.glyphMap; title: string; description: string }> = [
-  {
-    icon: 'camera',
-    title: 'Unlimited AI Food Scans',
-    description: 'Scan any meal with no daily limits',
-  },
-  {
-    icon: 'bar-chart',
-    title: 'Advanced Analytics',
-    description: 'Weekly, monthly trends and insights',
-  },
-  {
-    icon: 'barcode',
-    title: 'Barcode Scanning',
-    description: 'Instantly look up packaged foods',
-  },
-  {
-    icon: 'restaurant',
-    title: 'Personalized Meal Plans',
-    description: 'AI-generated plans for your goals',
-  },
-  {
-    icon: 'ban',
-    title: 'Ad-Free Experience',
-    description: 'No interruptions, ever',
-  },
+const FEATURES = [
+  { icon: 'infinite-outline' as const, text: 'Unlimited AI food scans' },
+  { icon: 'analytics-outline' as const, text: 'Advanced analytics & trends' },
+  { icon: 'barcode-outline' as const, text: 'Barcode scanning' },
+  { icon: 'restaurant-outline' as const, text: 'AI meal plan generator' },
+  { icon: 'ban-outline' as const, text: 'Completely ad-free' },
+  { icon: 'sync-outline' as const, text: 'Apple Health integration' },
 ];
 
 const PaywallScreen = (): React.JSX.Element => {
@@ -98,25 +76,66 @@ const PaywallScreen = (): React.JSX.Element => {
 
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('yearly');
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const ctaSlide = useRef(new Animated.Value(30)).current;
+  const ctaOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.02,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    pulse.start();
+
+    Animated.parallel([
+      Animated.timing(ctaSlide, {
+        toValue: 0,
+        duration: 600,
+        delay: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(ctaOpacity, {
+        toValue: 1,
+        duration: 600,
+        delay: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    return () => pulse.stop();
+  }, [pulseAnim, ctaSlide, ctaOpacity]);
 
   const handlePurchase = useCallback(async (): Promise<void> => {
+    haptics.medium();
     try {
       setIsPurchasing(true);
       dispatch(setSubscriptionLoading(true));
 
-      // Simulate purchase flow (in production, call RevenueCat purchasePackage)
-      await new Promise<void>((resolve) => {
+      await new Promise<void>(resolve => {
         setTimeout(resolve, 2000);
       });
 
-      dispatch(setSubscriptionTier(selectedPlan as SubscriptionTier));
-      Alert.alert(
-        'Welcome to Premium!',
-        'You now have access to all premium features.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      const tierMap: Record<PlanKey, SubscriptionTier> = {
+        weekly: 'monthly',
+        yearly: 'yearly',
+        monthly: 'monthly',
+      };
+
+      dispatch(setSubscriptionTier(tierMap[selectedPlan]));
+      haptics.success();
+      navigation.goBack();
     } catch {
-      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
+      haptics.error();
     } finally {
       setIsPurchasing(false);
       dispatch(setSubscriptionLoading(false));
@@ -124,128 +143,135 @@ const PaywallScreen = (): React.JSX.Element => {
   }, [selectedPlan, dispatch, navigation]);
 
   const handleRestore = useCallback(async (): Promise<void> => {
+    haptics.light();
     try {
       setIsPurchasing(true);
-
-      await new Promise<void>((resolve) => {
+      await new Promise<void>(resolve => {
         setTimeout(resolve, 1500);
       });
-
-      Alert.alert(
-        'No Subscription Found',
-        'We could not find an active subscription to restore.'
-      );
-    } catch {
-      Alert.alert('Restore Failed', 'Something went wrong. Please try again.');
     } finally {
       setIsPurchasing(false);
     }
   }, []);
 
+  const planOrder: PlanKey[] = ['weekly', 'yearly', 'monthly'];
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Close button */}
       <View style={styles.topBar}>
-        <View style={styles.topBarSpacer} />
-        <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={24} color={Theme.colors.textSecondary} />
+        <View style={styles.spacer} />
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={() => {
+            haptics.light();
+            navigation.goBack();
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={22} color={Theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Hero */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <View style={styles.heroIconRing}>
-            <Ionicons name="star" size={36} color={Theme.colors.premium} />
+          <View style={styles.heroStarField}>
+            <Ionicons name="star" size={40} color={Theme.colors.premium} />
           </View>
-          <Text style={styles.heroTitle}>Unlock NutriAI Premium</Text>
-          <Text style={styles.heroSubtitle}>
-            Unlimited scans, advanced analytics, and personalized nutrition plans
-          </Text>
+          <Text style={styles.heroTitle}>Go Premium</Text>
+          <Text style={styles.heroSubtitle}>Unlock unlimited AI-powered nutrition tracking</Text>
         </View>
 
-        {/* Features */}
-        <View style={styles.featuresSection}>
-          {FEATURES.map((feature) => (
-            <View key={feature.title} style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Ionicons name={feature.icon} size={20} color={Theme.colors.primary} />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDesc}>{feature.description}</Text>
-              </View>
+        <View style={styles.featuresGrid}>
+          {FEATURES.map(f => (
+            <View key={f.text} style={styles.featureChip}>
+              <Ionicons name={f.icon} size={18} color={Theme.colors.primary} />
+              <Text style={styles.featureChipText}>{f.text}</Text>
             </View>
           ))}
         </View>
 
-        {/* Plan selection */}
-        <View style={styles.plansSection}>
-          {PLANS.map((plan) => {
+        <View style={styles.plansRow}>
+          {planOrder.map(planKey => {
+            const plan = PLANS.find(p => p.key === planKey)!;
             const isSelected = selectedPlan === plan.key;
+            const isBestValue = plan.badge !== null;
+
             return (
               <TouchableOpacity
                 key={plan.key}
                 style={[
                   styles.planCard,
                   isSelected && styles.planCardSelected,
-                  plan.highlighted && styles.planCardHighlighted,
+                  isBestValue && isSelected && styles.planCardBest,
                 ]}
-                onPress={() => setSelectedPlan(plan.key)}
+                onPress={() => {
+                  haptics.selection();
+                  setSelectedPlan(plan.key);
+                }}
                 activeOpacity={0.8}
               >
                 {plan.badge && (
-                  <View style={styles.planBadge}>
-                    <Text style={styles.planBadgeText}>{plan.badge}</Text>
+                  <View style={styles.bestBadge}>
+                    <Text style={styles.bestBadgeText}>{plan.badge}</Text>
                   </View>
                 )}
 
-                <View style={styles.planRadio}>
-                  <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                    {isSelected && <View style={styles.radioInner} />}
-                  </View>
-                </View>
+                <Text style={[styles.planTitle, isSelected && styles.planTitleSelected]}>
+                  {plan.title}
+                </Text>
 
-                <View style={styles.planInfo}>
-                  <Text style={[styles.planTitle, isSelected && styles.planTitleSelected]}>
-                    {plan.title}
-                  </Text>
-                  <Text style={styles.planPerWeek}>{plan.perWeek}</Text>
-                </View>
+                <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
+                  {plan.price}
+                </Text>
+                <Text style={styles.planPeriod}>{plan.period}</Text>
 
-                <View style={styles.planPriceContainer}>
-                  <Text style={styles.planPrice}>{plan.price}</Text>
-                  <Text style={styles.planPeriod}>{plan.period}</Text>
-                </View>
-
-                {plan.savings && (
-                  <View style={styles.savingsTag}>
-                    <Text style={styles.savingsText}>{plan.savings}</Text>
+                {plan.trialText && (
+                  <View style={styles.trialBadge}>
+                    <Text style={styles.trialText}>{plan.trialText}</Text>
                   </View>
                 )}
+
+                <Text style={styles.planPerDay}>{plan.perDay}</Text>
+
+                <View style={[styles.planRadio, isSelected && styles.planRadioSelected]}>
+                  {isSelected && <View style={styles.planRadioInner} />}
+                </View>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Purchase CTA */}
-        <TouchableOpacity
-          style={[styles.purchaseButton, isPurchasing && styles.purchaseButtonDisabled]}
-          onPress={handlePurchase}
-          disabled={isPurchasing}
-          activeOpacity={0.85}
+        <Animated.View
+          style={[
+            styles.ctaSection,
+            {
+              opacity: ctaOpacity,
+              transform: [{ translateY: ctaSlide }, { scale: pulseAnim }],
+            },
+          ]}
         >
-          {isPurchasing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.purchaseButtonText}>Start Premium</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.purchaseButton, isPurchasing && styles.purchaseButtonDisabled]}
+            onPress={handlePurchase}
+            disabled={isPurchasing}
+            activeOpacity={0.85}
+          >
+            {isPurchasing ? (
+              <View style={styles.loadingDots}>
+                <View style={styles.dot} />
+                <View style={[styles.dot, styles.dotDelay1]} />
+                <View style={[styles.dot, styles.dotDelay2]} />
+              </View>
+            ) : (
+              <Text style={styles.purchaseButtonText}>
+                {selectedPlan === 'yearly' ? 'Start Free Trial' : 'Subscribe Now'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
 
-        {/* Restore */}
+        <Text style={styles.cancelText}>Cancel anytime. No commitment.</Text>
+
         <TouchableOpacity
           style={styles.restoreButton}
           onPress={handleRestore}
@@ -254,12 +280,11 @@ const PaywallScreen = (): React.JSX.Element => {
           <Text style={styles.restoreText}>Restore Purchases</Text>
         </TouchableOpacity>
 
-        {/* Legal */}
         <Text style={styles.legalText}>
-          Payment will be charged to your Apple ID account at confirmation of purchase.
-          Subscription automatically renews unless canceled at least 24 hours before the
-          end of the current period. You can manage and cancel your subscriptions by going
-          to your account settings on the App Store after purchase.
+          Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
+          automatically renews unless canceled at least 24 hours before the end of the current
+          period. You can manage and cancel subscriptions in your App Store account settings. Any
+          unused portion of a free trial period will be forfeited if you purchase a subscription.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -277,9 +302,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 4,
   },
-  topBarSpacer: {
-    flex: 1,
-  },
+  spacer: { flex: 1 },
   closeButton: {
     width: 36,
     height: 36,
@@ -289,199 +312,216 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 32,
   },
 
-  // Hero
   hero: {
     alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 32,
-  },
-  heroIconRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 215, 0, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  heroTitle: {
-    fontSize: Theme.typography.fontSize.xxl,
-    fontWeight: '700',
-    color: Theme.colors.text,
-    textAlign: 'center',
-  },
-  heroSubtitle: {
-    fontSize: Theme.typography.fontSize.md,
-    color: Theme.colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 10,
-    lineHeight: 22,
-    paddingHorizontal: 8,
-  },
-
-  // Features
-  featuresSection: {
-    marginBottom: 28,
-    gap: 16,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  featureIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Theme.colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  featureText: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: Theme.typography.fontSize.md,
-    fontWeight: '600',
-    color: Theme.colors.text,
-  },
-  featureDesc: {
-    fontSize: 13,
-    color: Theme.colors.textSecondary,
-    marginTop: 1,
-  },
-
-  // Plans
-  plansSection: {
-    gap: 12,
+    marginTop: 8,
     marginBottom: 24,
   },
-  planCard: {
+  heroStarField: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: Theme.colors.text,
+  },
+  heroSubtitle: {
+    fontSize: 16,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 24,
+  },
+
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 28,
+    justifyContent: 'center',
+  },
+  featureChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
-    padding: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    gap: 6,
+  },
+  featureChipText: {
+    fontSize: 13,
+    color: Theme.colors.text,
+    fontWeight: '500',
+  },
+
+  plansRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 24,
+  },
+  planCard: {
+    flex: 1,
+    backgroundColor: Theme.colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    paddingTop: 20,
+    alignItems: 'center',
     borderWidth: 2,
     borderColor: Theme.colors.border,
     position: 'relative',
-    overflow: 'hidden',
-    ...Theme.shadow.small,
+    minHeight: 180,
+    justifyContent: 'center',
   },
   planCardSelected: {
     borderColor: Theme.colors.primary,
   },
-  planCardHighlighted: {
+  planCardBest: {
     borderColor: Theme.colors.primary,
+    backgroundColor: Theme.colors.highlight,
+    transform: [{ scale: 1.02 }],
   },
-  planBadge: {
+  bestBadge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
+    top: -1,
+    left: -1,
+    right: -1,
     backgroundColor: Theme.colors.primary,
-    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderBottomLeftRadius: 8,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    alignItems: 'center',
   },
-  planBadgeText: {
+  bestBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  planRadio: {
-    marginRight: 14,
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: Theme.colors.inactive,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: Theme.colors.primary,
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Theme.colors.primary,
-  },
-  planInfo: {
-    flex: 1,
+    letterSpacing: 1,
   },
   planTitle: {
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 14,
     fontWeight: '600',
-    color: Theme.colors.text,
+    color: Theme.colors.textSecondary,
+    marginBottom: 8,
+    marginTop: 6,
   },
   planTitleSelected: {
-    color: Theme.colors.primary,
-  },
-  planPerWeek: {
-    fontSize: 12,
-    color: Theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  planPriceContainer: {
-    alignItems: 'flex-end',
+    color: Theme.colors.text,
   },
   planPrice: {
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 24,
     fontWeight: '700',
     color: Theme.colors.text,
+  },
+  planPriceSelected: {
+    color: Theme.colors.primary,
   },
   planPeriod: {
     fontSize: 12,
     color: Theme.colors.textSecondary,
+    marginTop: 2,
   },
-  savingsTag: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    backgroundColor: Theme.colors.primary,
-    paddingHorizontal: 10,
+  trialBadge: {
+    backgroundColor: 'rgba(46, 213, 115, 0.15)',
     paddingVertical: 3,
-    borderTopRightRadius: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginTop: 8,
   },
-  savingsText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  trialText: {
+    fontSize: 11,
+    color: Theme.colors.primary,
+    fontWeight: '600',
+  },
+  planPerDay: {
+    fontSize: 11,
+    color: Theme.colors.textSecondary,
+    marginTop: 6,
+  },
+  planRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Theme.colors.inactive,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  planRadioSelected: {
+    borderColor: Theme.colors.primary,
+  },
+  planRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Theme.colors.primary,
   },
 
-  // CTA
+  ctaSection: {
+    marginBottom: 12,
+  },
   purchaseButton: {
     backgroundColor: Theme.colors.primary,
     paddingVertical: 18,
     borderRadius: Theme.border.radius.large,
     alignItems: 'center',
-    marginBottom: 14,
-    ...Theme.shadow.medium,
+    ...Theme.shadow.large,
   },
   purchaseButtonDisabled: {
     opacity: 0.6,
   },
   purchaseButtonText: {
     color: '#FFFFFF',
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: '700',
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 6,
+    height: 22,
+    alignItems: 'center',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.6,
+  },
+  dotDelay1: {
+    opacity: 0.8,
+  },
+  dotDelay2: {
+    opacity: 1,
+  },
+
+  cancelText: {
+    fontSize: 14,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '500',
   },
   restoreButton: {
     paddingVertical: 12,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   restoreText: {
-    color: Theme.colors.textSecondary,
-    fontSize: Theme.typography.fontSize.sm,
+    color: Theme.colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
   legalText: {
@@ -489,6 +529,7 @@ const styles = StyleSheet.create({
     color: Theme.colors.inactive,
     textAlign: 'center',
     lineHeight: 16,
+    paddingHorizontal: 8,
   },
 });
 

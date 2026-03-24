@@ -1,42 +1,54 @@
 /**
  * NutriAI Design System
- * Dark mode theme based on PRINTMAXX V2 top-grossing health/wellness apps.
+ * Dark mode theme - premium health/wellness app styling.
+ *
+ * Typography hierarchy:
+ *   - SF Pro Display: Hero numbers (48-72pt thin weight)
+ *   - SF Pro Text: Body copy (17pt regular)
+ *   - SF Pro Rounded: Friendly UI elements
+ *
+ * Color rationale:
+ *   - #0B1A2E navy: Premium dark background
+ *   - #2ED573 green: Positive/healthy actions
+ *   - #FF6B6B coral: Warnings/negative values
+ *   - True black #000000 available for OLED mode
  */
 
 export const Theme = {
   colors: {
     // Core palette
-    primary: '#2ED573',       // Green accent (good / positive)
-    secondary: '#7895B2',     // Muted blue
-    background: '#0B1A2E',    // Deep navy background
-    surface: '#1A2B45',       // Card / elevated surface
-    card: '#1A2B45',          // Alias for surface
-    text: '#FFFFFF',          // Primary text
-    textSecondary: '#8898AA', // Secondary / muted text
-    border: '#253A54',        // Subtle divider
+    primary: '#2ED573',
+    secondary: '#7895B2',
+    background: '#0B1A2E',
+    backgroundOLED: '#000000',
+    surface: '#1A2B45',
+    card: '#1A2B45',
+    text: '#FFFFFF',
+    textSecondary: '#8898AA',
+    border: '#253A54',
 
     // Status
-    error: '#FF6B6B',         // Coral for bad / errors
-    warning: '#FFD93D',       // Warm gold
-    success: '#2ED573',       // Same as primary green
+    error: '#FF6B6B',
+    warning: '#FFD93D',
+    success: '#2ED573',
 
     // Nutrition macro colors
-    protein: '#FF6B6B',       // Coral
-    carbs: '#2ED573',         // Green
-    fat: '#5B8DEF',           // Blue
+    protein: '#FF6B6B',
+    carbs: '#2ED573',
+    fat: '#5B8DEF',
 
     // Subscription / premium
-    premium: '#FFD700',       // Gold
-    inactive: '#4A5568',      // Dark gray
-    disabled: '#2D3748',      // Darker gray
+    premium: '#FFD700',
+    inactive: '#4A5568',
+    disabled: '#2D3748',
 
     // Surfaces and accents
-    cardBackground: '#142237', // Slightly different surface for nesting
-    accent: '#FF6B6B',        // Coral accent
-    highlight: '#1E3A5F',     // Highlighted card surface
-    shadow: '#000000',        // Shadow color
-    primaryLight: '#1A3D2A',  // Muted green tint for backgrounds
-    watercolor: '#152A42',    // Subtle blue tint surface
+    cardBackground: '#142237',
+    accent: '#FF6B6B',
+    highlight: '#1E3A5F',
+    shadow: '#000000',
+    primaryLight: '#1A3D2A',
+    watercolor: '#152A42',
   },
 
   typography: {
@@ -49,10 +61,13 @@ export const Theme = {
       xs: 12,
       sm: 14,
       md: 16,
+      body: 17,
       lg: 18,
       xl: 20,
       xxl: 24,
       xxxl: 32,
+      hero: 48,
+      heroLarge: 72,
     },
     letterSpacing: {
       tight: -0.2,
@@ -123,11 +138,16 @@ export const Theme = {
       normal: 300,
       slow: 500,
     },
+    maxDuration: 400,
+  },
+
+  touchTarget: {
+    minimum: 44,
   },
 
   opacity: {
     disabled: 0.4,
-    hover: 0.85,
+    pressed: 0.85,
     active: 0.7,
     overlay: 0.6,
   },

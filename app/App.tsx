@@ -1,15 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { StatusBar, ActivityIndicator, View, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { StatusBar, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 
 import { store } from './store';
 import { Theme } from './utils/theme';
+import { haptics } from './utils/haptics';
 
+import SplashScreen from './screens/SplashScreen';
+import OnboardingScreen from './screens/Onboarding';
 import HomeScreen from './screens/Home';
 import AnalyticsScreen from './screens/Analytics';
 import SettingsScreen from './screens/Settings';
@@ -17,6 +20,7 @@ import CameraScreen from './screens/Camera';
 import PaywallScreen from './screens/Paywall';
 
 import { setPremiumStatus } from './store/subscriptionSlice';
+import { useAppSelector } from './store/hooks';
 
 type TabParamList = {
   Home: undefined;
@@ -31,26 +35,31 @@ type RootStackParamList = {
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createStackNavigator<RootStackParamList>();
 
-function getTabBarIcon(routeName: string, color: string, size: number): React.ReactNode {
+function getTabBarIcon(
+  routeName: string,
+  focused: boolean,
+  color: string,
+  size: number,
+): React.ReactNode {
   let iconName: keyof typeof Ionicons.glyphMap;
 
   switch (routeName) {
     case 'Home':
-      iconName = 'home';
+      iconName = focused ? 'home' : 'home-outline';
       break;
     case 'Camera':
-      iconName = 'camera';
+      iconName = focused ? 'camera' : 'camera-outline';
       break;
     case 'Analytics':
-      iconName = 'bar-chart';
+      iconName = focused ? 'bar-chart' : 'bar-chart-outline';
       break;
     case 'Settings':
-      iconName = 'settings';
+      iconName = focused ? 'settings' : 'settings-outline';
       break;
     default:
-      iconName = 'home';
+      iconName = 'home-outline';
   }
 
   return <Ionicons name={iconName} size={size} color={color} />;
@@ -60,7 +69,7 @@ function MainTabs(): React.JSX.Element {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => getTabBarIcon(route.name, color, size),
+        tabBarIcon: ({ focused, color, size }) => getTabBarIcon(route.name, focused, color, size),
         tabBarActiveTintColor: Theme.colors.primary,
         tabBarInactiveTintColor: Theme.colors.inactive,
         tabBarStyle: {
@@ -74,14 +83,43 @@ function MainTabs(): React.JSX.Element {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600' as const,
+          marginTop: 2,
         },
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Camera" component={CameraScreen} />
-      <Tab.Screen name="Analytics" component={AnalyticsScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ tabBarLabel: 'Today' }}
+        listeners={{
+          tabPress: () => haptics.light(),
+        }}
+      />
+      <Tab.Screen
+        name="Camera"
+        component={CameraScreen}
+        options={{ tabBarLabel: 'Scan' }}
+        listeners={{
+          tabPress: () => haptics.light(),
+        }}
+      />
+      <Tab.Screen
+        name="Analytics"
+        component={AnalyticsScreen}
+        options={{ tabBarLabel: 'Insights' }}
+        listeners={{
+          tabPress: () => haptics.light(),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ tabBarLabel: 'Settings' }}
+        listeners={{
+          tabPress: () => haptics.light(),
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -90,41 +128,105 @@ function AppNavigator(): React.JSX.Element {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={MainTabs} />
-      <Stack.Screen
-        name="Paywall"
-        component={PaywallScreen}
-        options={{ presentation: 'modal' }}
-      />
+      <Stack.Screen name="Paywall" component={PaywallScreen} options={{ presentation: 'modal' }} />
     </Stack.Navigator>
   );
 }
 
-function AppInitializer({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [isReady, setIsReady] = useState(false);
+type AppPhase = 'splash' | 'onboarding' | 'paywall' | 'app';
+
+function AppContent(): React.JSX.Element {
+  const hasCompletedOnboarding = useAppSelector(state => state.user.hasCompletedOnboarding);
+  const [phase, setPhase] = useState<AppPhase>('splash');
+  const [hasSeenPaywall, setHasSeenPaywall] = useState(false);
 
   useEffect(() => {
-    async function bootstrap(): Promise<void> {
-      try {
-        // In production, initialize RevenueCat and check entitlements here.
-        // For now, default to free tier.
-        store.dispatch(setPremiumStatus(false));
-      } finally {
-        setIsReady(true);
-      }
-    }
-
-    bootstrap();
+    store.dispatch(setPremiumStatus(false));
   }, []);
 
-  if (!isReady) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Theme.colors.primary} />
-      </View>
-    );
-  }
+  const handleSplashFinish = useCallback(() => {
+    if (hasCompletedOnboarding) {
+      setPhase('app');
+    } else {
+      setPhase('onboarding');
+    }
+  }, [hasCompletedOnboarding]);
 
-  return <>{children}</>;
+  const handleOnboardingComplete = useCallback(() => {
+    if (!hasSeenPaywall) {
+      setPhase('paywall');
+      setHasSeenPaywall(true);
+    } else {
+      setPhase('app');
+    }
+  }, [hasSeenPaywall]);
+
+  const handlePaywallDismiss = useCallback(() => {
+    setPhase('app');
+  }, []);
+
+  switch (phase) {
+    case 'splash':
+      return <SplashScreen onFinish={handleSplashFinish} />;
+    case 'onboarding':
+      return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+    case 'paywall':
+      return <InitialPaywallWrapper onDismiss={handlePaywallDismiss} />;
+    case 'app':
+      return (
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      );
+    default:
+      return <SplashScreen onFinish={handleSplashFinish} />;
+  }
+}
+
+function InitialPaywallWrapper({ onDismiss }: { onDismiss: () => void }): React.JSX.Element {
+  return (
+    <NavigationContainer>
+      <InitialPaywallNavigator onDismiss={onDismiss} />
+    </NavigationContainer>
+  );
+}
+
+const InitialPaywallStack = createStackNavigator();
+
+function InitialPaywallNavigator({ onDismiss }: { onDismiss: () => void }): React.JSX.Element {
+  return (
+    <InitialPaywallStack.Navigator screenOptions={{ headerShown: false }}>
+      <InitialPaywallStack.Screen name="PaywallInitial">
+        {() => <PaywallWithDismiss onDismiss={onDismiss} />}
+      </InitialPaywallStack.Screen>
+    </InitialPaywallStack.Navigator>
+  );
+}
+
+function PaywallWithDismiss({ onDismiss }: { onDismiss: () => void }): React.JSX.Element {
+  const isPremium = useAppSelector(state => state.subscription.isPremium);
+
+  useEffect(() => {
+    if (isPremium) {
+      onDismiss();
+    }
+  }, [isPremium, onDismiss]);
+
+  return (
+    <View style={styles.paywallContainer}>
+      <PaywallScreen />
+      <TouchableOpacity
+        style={styles.skipButton}
+        onPress={() => {
+          haptics.light();
+          onDismiss();
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Text style={styles.skipText}>Skip for now</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 const App = (): React.JSX.Element => {
@@ -132,22 +234,31 @@ const App = (): React.JSX.Element => {
     <Provider store={store}>
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" backgroundColor={Theme.colors.background} />
-        <AppInitializer>
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
-        </AppInitializer>
+        <AppContent />
       </SafeAreaProvider>
     </Provider>
   );
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: {
+  paywallContainer: {
     flex: 1,
+    backgroundColor: Theme.colors.background,
+  },
+  skipButton: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Theme.colors.background,
+  },
+  skipText: {
+    color: Theme.colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });
 

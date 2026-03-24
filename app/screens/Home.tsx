@@ -1,28 +1,25 @@
-import React, { useMemo } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import React, { useMemo, useState, useCallback } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import { Theme } from '../utils/theme';
+import { haptics } from '../utils/haptics';
 import { useAppSelector } from '../store/hooks';
+import { EmptyState } from '../components/common/EmptyState';
 
 const HomeScreen = (): React.JSX.Element => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const isPremium = useAppSelector((state) => state.subscription.isPremium);
-  const dailyScansUsed = useAppSelector((state) => state.subscription.dailyScansUsed);
-  const dailyScanLimit = useAppSelector((state) => state.subscription.dailyScanLimit);
-  const dailyGoal = useAppSelector((state) => state.nutrition.dailyGoal);
-  const consumedItems = useAppSelector((state) => state.nutrition.consumedItems);
-  const activeDate = useAppSelector((state) => state.nutrition.activeDate);
+  const isPremium = useAppSelector(state => state.subscription.isPremium);
+  const dailyScansUsed = useAppSelector(state => state.subscription.dailyScansUsed);
+  const dailyScanLimit = useAppSelector(state => state.subscription.dailyScanLimit);
+  const dailyGoal = useAppSelector(state => state.nutrition.dailyGoal);
+  const consumedItems = useAppSelector(state => state.nutrition.consumedItems);
+  const activeDate = useAppSelector(state => state.nutrition.activeDate);
 
   const todayItems = consumedItems[activeDate] ?? [];
 
@@ -34,27 +31,31 @@ const HomeScreen = (): React.JSX.Element => {
     return { calories, protein, carbs, fat };
   }, [todayItems]);
 
-  const remaining = useMemo(() => ({
-    calories: Math.max(0, dailyGoal.calories - totals.calories),
-    protein: Math.max(0, dailyGoal.protein - totals.protein),
-    carbs: Math.max(0, dailyGoal.carbs - totals.carbs),
-    fat: Math.max(0, dailyGoal.fat - totals.fat),
-  }), [dailyGoal, totals]);
+  const remaining = useMemo(
+    () => ({
+      calories: Math.max(0, dailyGoal.calories - totals.calories),
+    }),
+    [dailyGoal, totals],
+  );
 
-  const scansRemaining = isPremium
-    ? null
-    : Math.max(0, dailyScanLimit - dailyScansUsed);
+  const scansRemaining = isPremium ? null : Math.max(0, dailyScanLimit - dailyScansUsed);
 
-  const calorieProgress = dailyGoal.calories > 0
-    ? Math.min(1, totals.calories / dailyGoal.calories)
-    : 0;
+  const calorieProgress =
+    dailyGoal.calories > 0 ? Math.min(1, totals.calories / dailyGoal.calories) : 0;
 
   const getMacroProgress = (consumed: number, goal: number): number =>
     goal > 0 ? Math.min(1, consumed / goal) : 0;
 
   const openCamera = (): void => {
+    haptics.light();
     navigation.navigate('Camera');
   };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    haptics.light();
+    setTimeout(() => setRefreshing(false), 800);
+  }, []);
 
   const formatTime = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -66,32 +67,62 @@ const HomeScreen = (): React.JSX.Element => {
     return `${h}:${m} ${ampm}`;
   };
 
+  const ringSize = 120;
+  const ringStrokeWidth = 8;
+  const progressColor = calorieProgress >= 1 ? Theme.colors.error : Theme.colors.primary;
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good {getTimeOfDay()}</Text>
           <Text style={styles.dateText}>{getFormattedDate()}</Text>
         </View>
         {!isPremium && scansRemaining !== null && (
-          <View style={styles.scanBadge}>
+          <TouchableOpacity
+            style={styles.scanBadge}
+            onPress={() => {
+              haptics.light();
+              navigation.navigate('Paywall');
+            }}
+            activeOpacity={0.8}
+          >
             <Ionicons name="camera-outline" size={14} color={Theme.colors.primary} />
             <Text style={styles.scanBadgeText}>{scansRemaining} scans left</Text>
-          </View>
+          </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Calorie Ring Card */}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Theme.colors.primary}
+            colors={[Theme.colors.primary]}
+          />
+        }
+      >
         <View style={styles.calorieCard}>
           <View style={styles.calorieRingContainer}>
-            <View style={styles.calorieRingOuter}>
+            <View
+              style={[
+                styles.calorieRingOuter,
+                { width: ringSize, height: ringSize, borderRadius: ringSize / 2 },
+              ]}
+            >
               <View
                 style={[
                   styles.calorieRingProgress,
                   {
-                    borderColor: calorieProgress >= 1 ? Theme.colors.error : Theme.colors.primary,
+                    width: ringSize,
+                    height: ringSize,
+                    borderRadius: ringSize / 2,
+                    borderWidth: ringStrokeWidth,
+                    borderColor: progressColor,
+                    opacity: calorieProgress,
                   },
                 ]}
               />
@@ -120,20 +151,40 @@ const HomeScreen = (): React.JSX.Element => {
           </View>
         </View>
 
-        {/* Macro Progress Bars */}
         <View style={styles.macroCard}>
           <Text style={styles.sectionTitle}>Macros</Text>
           <View style={styles.macroGrid}>
-            {([
-              { label: 'Protein', consumed: totals.protein, goal: dailyGoal.protein, color: Theme.colors.protein, unit: 'g' },
-              { label: 'Carbs', consumed: totals.carbs, goal: dailyGoal.carbs, color: Theme.colors.carbs, unit: 'g' },
-              { label: 'Fat', consumed: totals.fat, goal: dailyGoal.fat, color: Theme.colors.fat, unit: 'g' },
-            ] as const).map((macro) => (
+            {(
+              [
+                {
+                  label: 'Protein',
+                  consumed: totals.protein,
+                  goal: dailyGoal.protein,
+                  color: Theme.colors.protein,
+                  unit: 'g',
+                },
+                {
+                  label: 'Carbs',
+                  consumed: totals.carbs,
+                  goal: dailyGoal.carbs,
+                  color: Theme.colors.carbs,
+                  unit: 'g',
+                },
+                {
+                  label: 'Fat',
+                  consumed: totals.fat,
+                  goal: dailyGoal.fat,
+                  color: Theme.colors.fat,
+                  unit: 'g',
+                },
+              ] as const
+            ).map(macro => (
               <View key={macro.label} style={styles.macroItem}>
                 <View style={styles.macroHeader}>
                   <Text style={styles.macroLabel}>{macro.label}</Text>
                   <Text style={styles.macroValues}>
-                    {Math.round(macro.consumed)}/{macro.goal}{macro.unit}
+                    {Math.round(macro.consumed)}/{macro.goal}
+                    {macro.unit}
                   </Text>
                 </View>
                 <View style={styles.progressBarBg}>
@@ -152,42 +203,48 @@ const HomeScreen = (): React.JSX.Element => {
           </View>
         </View>
 
-        {/* Recently Logged Foods */}
         <View style={styles.recentSection}>
           <Text style={styles.sectionTitle}>Recently Logged</Text>
           {todayItems.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconContainer}>
-                <Ionicons name="restaurant-outline" size={32} color={Theme.colors.inactive} />
-              </View>
-              <Text style={styles.emptyTitle}>No food logged yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Tap the camera button to scan your first meal
-              </Text>
+            <View style={styles.emptyContainer}>
+              <EmptyState
+                icon="restaurant-outline"
+                title="No food logged yet"
+                subtitle="Tap the camera button below to scan your first meal and start tracking your nutrition"
+                actionLabel="Scan Food"
+                onAction={openCamera}
+              />
             </View>
           ) : (
-            todayItems.slice().reverse().map((item) => (
-              <View key={item.id} style={styles.foodCard}>
-                <View style={styles.foodIcon}>
-                  <Ionicons name="restaurant" size={18} color={Theme.colors.primary} />
-                </View>
-                <View style={styles.foodInfo}>
-                  <Text style={styles.foodName}>{item.name}</Text>
-                  <Text style={styles.foodMeta}>
-                    {item.calories} cal  {'\u00B7'}  P: {item.protein}g  {'\u00B7'}  C: {item.carbs}g  {'\u00B7'}  F: {item.fat}g
-                  </Text>
-                </View>
-                <Text style={styles.foodTime}>{formatTime(item.timestamp)}</Text>
-              </View>
-            ))
+            todayItems
+              .slice()
+              .reverse()
+              .map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.foodCard}
+                  activeOpacity={0.7}
+                  onPress={() => haptics.light()}
+                >
+                  <View style={styles.foodIcon}>
+                    <Ionicons name="restaurant" size={18} color={Theme.colors.primary} />
+                  </View>
+                  <View style={styles.foodInfo}>
+                    <Text style={styles.foodName}>{item.name}</Text>
+                    <Text style={styles.foodMeta}>
+                      {item.calories} cal {'\u00B7'} P: {item.protein}g {'\u00B7'} C: {item.carbs}g{' '}
+                      {'\u00B7'} F: {item.fat}g
+                    </Text>
+                  </View>
+                  <Text style={styles.foodTime}>{formatTime(item.timestamp)}</Text>
+                </TouchableOpacity>
+              ))
           )}
         </View>
 
-        {/* Bottom spacing for FAB */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Floating Action Button */}
       <TouchableOpacity style={styles.fab} onPress={openCamera} activeOpacity={0.85}>
         <Ionicons name="camera" size={28} color="#FFFFFF" />
       </TouchableOpacity>
@@ -223,12 +280,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   greeting: {
-    fontSize: Theme.typography.fontSize.xxl,
+    fontSize: 24,
     fontWeight: '700',
     color: Theme.colors.text,
   },
   dateText: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.textSecondary,
     marginTop: 2,
   },
@@ -237,14 +294,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Theme.colors.surface,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: Theme.border.radius.round,
+    gap: 4,
+    minHeight: 44,
   },
   scanBadgeText: {
-    fontSize: 12,
+    fontSize: 13,
     color: Theme.colors.primary,
     fontWeight: '600',
-    marginLeft: 4,
   },
   scrollView: {
     flex: 1,
@@ -263,9 +321,6 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   calorieRingOuter: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
     borderWidth: 6,
     borderColor: Theme.colors.border,
     alignItems: 'center',
@@ -273,17 +328,13 @@ const styles = StyleSheet.create({
   },
   calorieRingProgress: {
     position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 6,
   },
   calorieRingInner: {
     alignItems: 'center',
   },
   calorieNumber: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 32,
+    fontWeight: '200',
     color: Theme.colors.text,
   },
   calorieUnit: {
@@ -301,11 +352,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   calorieDetailLabel: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.textSecondary,
   },
   calorieDetailValue: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     fontWeight: '600',
     color: Theme.colors.text,
   },
@@ -318,7 +369,7 @@ const styles = StyleSheet.create({
     ...Theme.shadow.small,
   },
   sectionTitle: {
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: '700',
     color: Theme.colors.text,
     marginBottom: 16,
@@ -335,12 +386,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   macroLabel: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.textSecondary,
     fontWeight: '500',
   },
   macroValues: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.text,
     fontWeight: '600',
   },
@@ -358,32 +409,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
   },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
+  emptyContainer: {
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
-  },
-  emptyIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Theme.colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: Theme.typography.fontSize.md,
-    fontWeight: '600',
-    color: Theme.colors.text,
-  },
-  emptySubtitle: {
-    fontSize: Theme.typography.fontSize.sm,
-    color: Theme.colors.textSecondary,
-    marginTop: 4,
-    textAlign: 'center',
-    paddingHorizontal: 32,
   },
   foodCard: {
     flexDirection: 'row',
@@ -392,12 +420,13 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     padding: 14,
     marginBottom: 10,
+    minHeight: 64,
     ...Theme.shadow.small,
   },
   foodIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Theme.colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
@@ -407,7 +436,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   foodName: {
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     fontWeight: '600',
     color: Theme.colors.text,
   },

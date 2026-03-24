@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +15,9 @@ import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 
 import { Theme } from '../utils/theme';
+import { haptics } from '../utils/haptics';
 import { useAppSelector } from '../store/hooks';
+import { EmptyState } from '../components/common/EmptyState';
 
 const screenWidth = Dimensions.get('window').width;
 const chartWidth = screenWidth - 48;
@@ -39,18 +42,25 @@ function daysAgoISO(n: number): string {
 
 const AnalyticsScreen = (): React.JSX.Element => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
-  const isPremium = useAppSelector((state) => state.subscription.isPremium);
-  const consumedItems = useAppSelector((state) => state.nutrition.consumedItems);
-  const dailyGoal = useAppSelector((state) => state.nutrition.dailyGoal);
+  const isPremium = useAppSelector(state => state.subscription.isPremium);
+  const consumedItems = useAppSelector(state => state.nutrition.consumedItems);
+  const dailyGoal = useAppSelector(state => state.nutrition.dailyGoal);
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
+  const [refreshing, setRefreshing] = useState(false);
 
   const days = timeRange === 'week' ? 7 : 30;
 
-  // Calorie data for the selected range
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    haptics.light();
+    setTimeout(() => setRefreshing(false), 800);
+  }, []);
+
   const calorieData = useMemo(() => {
-    const labels = timeRange === 'week'
-      ? getLastNDaysLabels(7)
-      : getLastNDaysLabels(30).filter((_, i) => i % 5 === 0 || i === 29);
+    const labels =
+      timeRange === 'week'
+        ? getLastNDaysLabels(7)
+        : getLastNDaysLabels(30).filter((_, i) => i % 5 === 0 || i === 29);
 
     const data: number[] = [];
     for (let i = days - 1; i >= 0; i--) {
@@ -60,14 +70,12 @@ const AnalyticsScreen = (): React.JSX.Element => {
       data.push(totalCalories);
     }
 
-    const displayData = timeRange === 'month'
-      ? data.filter((_, i) => i % 5 === 0 || i === data.length - 1)
-      : data;
+    const displayData =
+      timeRange === 'month' ? data.filter((_, i) => i % 5 === 0 || i === data.length - 1) : data;
 
     return { labels, data: displayData };
   }, [consumedItems, timeRange, days]);
 
-  // Macro breakdown
   const macroData = useMemo(() => {
     let totalProtein = 0;
     let totalCarbs = 0;
@@ -76,7 +84,7 @@ const AnalyticsScreen = (): React.JSX.Element => {
     for (let i = days - 1; i >= 0; i--) {
       const dateKey = daysAgoISO(i);
       const items = consumedItems[dateKey] ?? [];
-      items.forEach((item) => {
+      items.forEach(item => {
         totalProtein += item.protein;
         totalCarbs += item.carbs;
         totalFat += item.fat;
@@ -96,7 +104,6 @@ const AnalyticsScreen = (): React.JSX.Element => {
     return { protein: totalProtein, carbs: totalCarbs, fat: totalFat, hasData: true };
   }, [consumedItems, dailyGoal, days]);
 
-  // Streak
   const streak = useMemo(() => {
     let count = 0;
     for (let i = 0; i < 365; i++) {
@@ -111,7 +118,6 @@ const AnalyticsScreen = (): React.JSX.Element => {
     return count;
   }, [consumedItems]);
 
-  // Summary stats
   const summary = useMemo(() => {
     const allData: number[] = [];
     for (let i = days - 1; i >= 0; i--) {
@@ -121,14 +127,17 @@ const AnalyticsScreen = (): React.JSX.Element => {
     }
 
     const total = allData.reduce((sum, cal) => sum + cal, 0);
-    const daysLogged = allData.filter((cal) => cal > 0).length;
+    const daysLogged = allData.filter(cal => cal > 0).length;
     const dailyAvg = daysLogged > 0 ? Math.round(total / daysLogged) : 0;
-    const goalPercent = dailyGoal.calories > 0
-      ? Math.round((dailyAvg / dailyGoal.calories) * 100)
-      : 0;
+    const goalPercent =
+      dailyGoal.calories > 0 ? Math.round((dailyAvg / dailyGoal.calories) * 100) : 0;
 
     return { total, daysLogged, dailyAvg, goalPercent };
   }, [consumedItems, dailyGoal, days]);
+
+  const hasAnyData = useMemo(() => {
+    return Object.values(consumedItems).some(items => items.length > 0);
+  }, [consumedItems]);
 
   const pieChartData = [
     {
@@ -178,19 +187,21 @@ const AnalyticsScreen = (): React.JSX.Element => {
 
   const ensureChartData = (data: number[]): number[] => {
     if (data.length === 0) return [0];
-    if (data.every((v) => v === 0)) return data.map(() => 0);
+    if (data.every(v => v === 0)) return data.map(() => 0);
     return data;
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Analytics</Text>
         {!isPremium && (
           <TouchableOpacity
             style={styles.premiumBadge}
-            onPress={() => navigation.navigate('Paywall')}
+            onPress={() => {
+              haptics.light();
+              navigation.navigate('Paywall');
+            }}
           >
             <Ionicons name="star" size={14} color={Theme.colors.premium} />
             <Text style={styles.premiumBadgeText}>PRO</Text>
@@ -198,11 +209,13 @@ const AnalyticsScreen = (): React.JSX.Element => {
         )}
       </View>
 
-      {/* Time Range Toggle */}
       <View style={styles.toggleContainer}>
         <TouchableOpacity
           style={[styles.toggleButton, timeRange === 'week' && styles.toggleActive]}
-          onPress={() => setTimeRange('week')}
+          onPress={() => {
+            haptics.selection();
+            setTimeRange('week');
+          }}
         >
           <Text style={[styles.toggleText, timeRange === 'week' && styles.toggleTextActive]}>
             Weekly
@@ -215,6 +228,7 @@ const AnalyticsScreen = (): React.JSX.Element => {
             !isPremium && styles.toggleLocked,
           ]}
           onPress={() => {
+            haptics.selection();
             if (isPremium) {
               setTimeRange('month');
             } else {
@@ -229,109 +243,131 @@ const AnalyticsScreen = (): React.JSX.Element => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Calorie Trends Chart */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Calorie Trends</Text>
-          <View style={styles.chartCard}>
-            <LineChart
-              data={{
-                labels: calorieData.labels,
-                datasets: [
-                  {
-                    data: ensureChartData(calorieData.data),
-                    strokeWidth: 3,
-                  },
-                  {
-                    data: Array(calorieData.data.length).fill(dailyGoal.calories) as number[],
-                    strokeWidth: 1,
-                    color: (opacity: number = 1) => `rgba(255, 107, 107, ${opacity * 0.4})`,
-                    withDots: false,
-                  },
-                ],
-              }}
-              width={chartWidth}
-              height={200}
-              yAxisSuffix=""
-              yAxisInterval={1}
-              chartConfig={chartConfig}
-              bezier
-              style={styles.chart}
-              fromZero
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Theme.colors.primary}
+          />
+        }
+      >
+        {!hasAnyData ? (
+          <View style={styles.emptyWrapper}>
+            <EmptyState
+              icon="analytics-outline"
+              title="No data to analyze yet"
+              subtitle="Start logging meals to see your calorie trends, macro breakdowns, and nutrition insights"
+              actionLabel="Scan Your First Meal"
+              onAction={() => navigation.navigate('Camera')}
             />
-            <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Theme.colors.primary }]} />
-                <Text style={styles.legendText}>Consumed</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Calorie Trends</Text>
+              <View style={styles.chartCard}>
+                <LineChart
+                  data={{
+                    labels: calorieData.labels,
+                    datasets: [
+                      {
+                        data: ensureChartData(calorieData.data),
+                        strokeWidth: 3,
+                      },
+                      {
+                        data: Array(calorieData.data.length).fill(dailyGoal.calories) as number[],
+                        strokeWidth: 1,
+                        color: (opacity: number = 1) => `rgba(255, 107, 107, ${opacity * 0.4})`,
+                        withDots: false,
+                      },
+                    ],
+                  }}
+                  width={chartWidth}
+                  height={200}
+                  yAxisSuffix=""
+                  yAxisInterval={1}
+                  chartConfig={chartConfig}
+                  bezier
+                  style={styles.chart}
+                  fromZero
+                />
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: Theme.colors.primary }]} />
+                    <Text style={styles.legendText}>Consumed</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: Theme.colors.protein }]} />
+                    <Text style={styles.legendText}>Daily Goal</Text>
+                  </View>
+                </View>
               </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Theme.colors.protein }]} />
-                <Text style={styles.legendText}>Daily Goal</Text>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Macro Distribution</Text>
+              <View style={styles.chartCard}>
+                <PieChart
+                  data={pieChartData}
+                  width={chartWidth}
+                  height={180}
+                  chartConfig={chartConfig}
+                  accessor="value"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                />
+                {!macroData.hasData && (
+                  <Text style={styles.chartNote}>Showing goal ratios (no data logged yet)</Text>
+                )}
               </View>
             </View>
-          </View>
-        </View>
 
-        {/* Macro Distribution */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Macro Distribution</Text>
-          <View style={styles.chartCard}>
-            <PieChart
-              data={pieChartData}
-              width={chartWidth}
-              height={180}
-              chartConfig={chartConfig}
-              accessor="value"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
-            {!macroData.hasData && (
-              <Text style={styles.chartNote}>Showing goal ratios (no data logged yet)</Text>
-            )}
-          </View>
-        </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Summary</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statCard}>
+                  <Ionicons name="flame" size={24} color={Theme.colors.protein} />
+                  <Text style={styles.statValue}>{summary.dailyAvg.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>Daily Avg</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Ionicons name="calendar" size={24} color={Theme.colors.fat} />
+                  <Text style={styles.statValue}>{summary.daysLogged}</Text>
+                  <Text style={styles.statLabel}>Days Logged</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Ionicons name="trending-up" size={24} color={Theme.colors.carbs} />
+                  <Text style={styles.statValue}>{summary.goalPercent}%</Text>
+                  <Text style={styles.statLabel}>Goal Hit</Text>
+                </View>
+              </View>
+            </View>
 
-        {/* Summary Cards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Summary</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Ionicons name="flame" size={24} color={Theme.colors.protein} />
-              <Text style={styles.statValue}>{summary.dailyAvg.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Daily Avg</Text>
+            <View style={styles.section}>
+              <View style={styles.streakCard}>
+                <View style={styles.streakIconContainer}>
+                  <Ionicons name="flame" size={40} color={Theme.colors.protein} />
+                </View>
+                <View style={styles.streakContent}>
+                  <Text style={styles.streakNumber}>{streak}</Text>
+                  <Text style={styles.streakLabel}>day logging streak</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.statCard}>
-              <Ionicons name="calendar" size={24} color={Theme.colors.fat} />
-              <Text style={styles.statValue}>{summary.daysLogged}</Text>
-              <Text style={styles.statLabel}>Days Logged</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="trending-up" size={24} color={Theme.colors.carbs} />
-              <Text style={styles.statValue}>{summary.goalPercent}%</Text>
-              <Text style={styles.statLabel}>Goal Hit</Text>
-            </View>
-          </View>
-        </View>
+          </>
+        )}
 
-        {/* Streak */}
-        <View style={styles.section}>
-          <View style={styles.streakCard}>
-            <View style={styles.streakIconContainer}>
-              <Ionicons name="flame" size={40} color={Theme.colors.protein} />
-            </View>
-            <View style={styles.streakContent}>
-              <Text style={styles.streakNumber}>{streak}</Text>
-              <Text style={styles.streakLabel}>day logging streak</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Premium CTA for free users */}
         {!isPremium && (
           <TouchableOpacity
             style={styles.premiumCta}
-            onPress={() => navigation.navigate('Paywall')}
+            onPress={() => {
+              haptics.light();
+              navigation.navigate('Paywall');
+            }}
             activeOpacity={0.85}
           >
             <Ionicons name="lock-open-outline" size={24} color={Theme.colors.premium} />
@@ -364,7 +400,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   headerTitle: {
-    fontSize: Theme.typography.fontSize.xxl,
+    fontSize: 24,
     fontWeight: '700',
     color: Theme.colors.text,
   },
@@ -373,9 +409,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Theme.colors.surface,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: Theme.border.radius.round,
     gap: 4,
+    minHeight: 44,
   },
   premiumBadgeText: {
     fontSize: 12,
@@ -398,6 +435,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: Theme.border.radius.small,
     gap: 4,
+    minHeight: 44,
   },
   toggleActive: {
     backgroundColor: Theme.colors.primary,
@@ -406,7 +444,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   toggleText: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     fontWeight: '600',
     color: Theme.colors.textSecondary,
   },
@@ -416,12 +454,18 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  emptyWrapper: {
+    marginHorizontal: 20,
+    marginTop: 40,
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.border.radius.medium,
+  },
   section: {
     paddingHorizontal: 20,
     paddingTop: 20,
   },
   sectionTitle: {
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: '700',
     color: Theme.colors.text,
     marginBottom: 12,
@@ -460,7 +504,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   legendText: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.textSecondary,
   },
   statsGrid: {
@@ -476,7 +520,7 @@ const styles = StyleSheet.create({
     ...Theme.shadow.small,
   },
   statValue: {
-    fontSize: Theme.typography.fontSize.xl,
+    fontSize: 20,
     fontWeight: '700',
     color: Theme.colors.text,
     marginTop: 8,
@@ -508,11 +552,11 @@ const styles = StyleSheet.create({
   },
   streakNumber: {
     fontSize: 36,
-    fontWeight: '700',
+    fontWeight: '200',
     color: Theme.colors.text,
   },
   streakLabel: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.textSecondary,
   },
   premiumCta: {
@@ -526,13 +570,13 @@ const styles = StyleSheet.create({
     borderColor: Theme.colors.border,
   },
   premiumCtaTitle: {
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: '700',
     color: Theme.colors.text,
     marginTop: 12,
   },
   premiumCtaDesc: {
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     color: Theme.colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
@@ -544,12 +588,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     borderRadius: Theme.border.radius.large,
     marginTop: 16,
+    minHeight: 48,
+    justifyContent: 'center',
     ...Theme.shadow.medium,
   },
   premiumCtaButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
   },
   bottomSpacer: {
     height: 40,

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  ActivityIndicator,
+  Animated,
+  Easing,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,10 +18,122 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 
 import { Theme } from '../utils/theme';
+import { haptics } from '../utils/haptics';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { addConsumedItem } from '../store/nutritionSlice';
 import { incrementDailyScans } from '../store/subscriptionSlice';
 import type { Food } from '../store/nutritionSlice';
+
+const AnalyzingOverlay = (): React.JSX.Element => {
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.6)).current;
+  const dotAnim1 = useRef(new Animated.Value(0)).current;
+  const dotAnim2 = useRef(new Animated.Value(0)).current;
+  const dotAnim3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const spin = Animated.loop(
+      Animated.timing(spinAnim, {
+        toValue: 1,
+        duration: 2000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.6,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    const makeDotAnim = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+
+    spin.start();
+    pulse.start();
+    makeDotAnim(dotAnim1, 0).start();
+    makeDotAnim(dotAnim2, 200).start();
+    makeDotAnim(dotAnim3, 400).start();
+
+    return () => {
+      spin.stop();
+      pulse.stop();
+    };
+  }, [spinAnim, pulseAnim, dotAnim1, dotAnim2, dotAnim3]);
+
+  const spinInterpolate = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={overlayStyles.container}>
+      <View style={overlayStyles.content}>
+        <Animated.View style={[overlayStyles.outerRing, { opacity: pulseAnim }]}>
+          <Animated.View
+            style={[overlayStyles.spinnerRing, { transform: [{ rotate: spinInterpolate }] }]}
+          >
+            <View style={overlayStyles.spinnerArc} />
+          </Animated.View>
+          <View style={overlayStyles.iconCircle}>
+            <Ionicons name="sparkles" size={32} color={Theme.colors.primary} />
+          </View>
+        </Animated.View>
+
+        <Text style={overlayStyles.title}>Analyzing your food</Text>
+
+        <View style={overlayStyles.dotsRow}>
+          {[dotAnim1, dotAnim2, dotAnim3].map((anim, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                overlayStyles.dot,
+                { opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={overlayStyles.stepsContainer}>
+          {['Identifying food items', 'Estimating portions', 'Calculating nutrition'].map(
+            (label, idx) => (
+              <View key={label} style={overlayStyles.stepRow}>
+                <View style={[overlayStyles.stepDot, idx === 0 && overlayStyles.stepDotActive]} />
+                <Text style={[overlayStyles.stepLabel, idx === 0 && overlayStyles.stepLabelActive]}>
+                  {label}
+                </Text>
+              </View>
+            ),
+          )}
+        </View>
+      </View>
+    </View>
+  );
+};
 
 const CameraScreen = (): React.JSX.Element => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -31,18 +144,17 @@ const CameraScreen = (): React.JSX.Element => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const dispatch = useAppDispatch();
 
-  const isPremium = useAppSelector((state) => state.subscription.isPremium);
-  const dailyScansUsed = useAppSelector((state) => state.subscription.dailyScansUsed);
-  const dailyScanLimit = useAppSelector((state) => state.subscription.dailyScanLimit);
+  const isPremium = useAppSelector(state => state.subscription.isPremium);
+  const dailyScansUsed = useAppSelector(state => state.subscription.dailyScansUsed);
+  const dailyScanLimit = useAppSelector(state => state.subscription.dailyScanLimit);
 
   const scansRemaining = isPremium ? null : Math.max(0, dailyScanLimit - dailyScansUsed);
 
   const takePicture = useCallback(async (): Promise<void> => {
     if (!cameraRef.current) return;
+    haptics.medium();
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
-      });
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (photo?.uri) {
         setCapturedImage(photo.uri);
       }
@@ -52,6 +164,7 @@ const CameraScreen = (): React.JSX.Element => {
   }, []);
 
   const pickFromGallery = useCallback(async (): Promise<void> => {
+    haptics.light();
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
@@ -67,26 +180,22 @@ const CameraScreen = (): React.JSX.Element => {
   const analyzePicture = useCallback(async (): Promise<void> => {
     if (!capturedImage) return;
 
-    // Check scan limit for free users
     if (!isPremium && scansRemaining !== null && scansRemaining <= 0) {
-      Alert.alert(
-        'Daily Limit Reached',
-        'You have used all free scans for today. Upgrade to Premium for unlimited scans.',
-        [
-          { text: 'Upgrade', onPress: () => navigation.navigate('Paywall') },
-          { text: 'OK', style: 'cancel' },
-        ]
-      );
+      haptics.error();
+      Alert.alert('Daily Limit Reached', 'Upgrade to Premium for unlimited scans.', [
+        { text: 'Upgrade', onPress: () => navigation.navigate('Paywall') },
+        { text: 'OK', style: 'cancel' },
+      ]);
       return;
     }
 
     try {
+      haptics.light();
       setIsAnalyzing(true);
       dispatch(incrementDailyScans());
 
-      // Simulate AI analysis delay (in production, call Gemini/GPT Vision API)
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 2000);
+      await new Promise<void>(resolve => {
+        setTimeout(resolve, 2500);
       });
 
       const foodResult: Food = {
@@ -100,8 +209,10 @@ const CameraScreen = (): React.JSX.Element => {
         timestamp: Date.now(),
       };
 
+      haptics.success();
       setAnalysisResult(foodResult);
     } catch {
+      haptics.error();
       Alert.alert('Analysis Failed', 'Could not analyze the food image. Please try again.');
     } finally {
       setIsAnalyzing(false);
@@ -110,33 +221,39 @@ const CameraScreen = (): React.JSX.Element => {
 
   const confirmAndSave = useCallback((): void => {
     if (!analysisResult) return;
+    haptics.success();
     dispatch(addConsumedItem(analysisResult));
     navigation.goBack();
   }, [analysisResult, dispatch, navigation]);
 
   const resetCamera = useCallback((): void => {
+    haptics.light();
     setCapturedImage(null);
     setAnalysisResult(null);
     setIsAnalyzing(false);
   }, []);
 
-  // Permission not yet determined
   if (!permission) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centeredContent}>
-          <ActivityIndicator size="large" color={Theme.colors.primary} />
+          <View style={styles.loadingPulse} />
         </View>
       </SafeAreaView>
     );
   }
 
-  // Permission denied
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.navBar}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              haptics.light();
+              navigation.goBack();
+            }}
+          >
             <Ionicons name="arrow-back" size={24} color={Theme.colors.text} />
           </TouchableOpacity>
           <Text style={styles.navTitle}>Food Scanner</Text>
@@ -144,20 +261,29 @@ const CameraScreen = (): React.JSX.Element => {
         </View>
         <View style={styles.centeredContent}>
           <View style={styles.permissionIconContainer}>
-            <Ionicons name="camera-outline" size={48} color={Theme.colors.inactive} />
+            <Ionicons name="camera-outline" size={48} color={Theme.colors.primary} />
           </View>
           <Text style={styles.permissionTitle}>Camera Access Required</Text>
           <Text style={styles.permissionDescription}>
             NutriAI needs camera access to scan and analyze your food for nutrition information.
           </Text>
           {permission.canAskAgain ? (
-            <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+            <TouchableOpacity
+              style={styles.permissionButton}
+              onPress={() => {
+                haptics.light();
+                requestPermission();
+              }}
+            >
               <Text style={styles.permissionButtonText}>Grant Camera Access</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={styles.permissionButton}
-              onPress={() => Linking.openSettings()}
+              onPress={() => {
+                haptics.light();
+                Linking.openSettings();
+              }}
             >
               <Text style={styles.permissionButtonText}>Open Settings</Text>
             </TouchableOpacity>
@@ -171,7 +297,6 @@ const CameraScreen = (): React.JSX.Element => {
     );
   }
 
-  // Analysis result view
   if (analysisResult) {
     return (
       <SafeAreaView style={styles.container}>
@@ -196,21 +321,21 @@ const CameraScreen = (): React.JSX.Element => {
                 <Text style={styles.resultMacroValue}>{analysisResult.calories}</Text>
                 <Text style={styles.resultMacroLabel}>Calories</Text>
               </View>
-              <View style={[styles.resultMacroDivider]} />
+              <View style={styles.resultMacroDivider} />
               <View style={styles.resultMacroItem}>
                 <Text style={[styles.resultMacroValue, { color: Theme.colors.protein }]}>
                   {analysisResult.protein}g
                 </Text>
                 <Text style={styles.resultMacroLabel}>Protein</Text>
               </View>
-              <View style={[styles.resultMacroDivider]} />
+              <View style={styles.resultMacroDivider} />
               <View style={styles.resultMacroItem}>
                 <Text style={[styles.resultMacroValue, { color: Theme.colors.carbs }]}>
                   {analysisResult.carbs}g
                 </Text>
                 <Text style={styles.resultMacroLabel}>Carbs</Text>
               </View>
-              <View style={[styles.resultMacroDivider]} />
+              <View style={styles.resultMacroDivider} />
               <View style={styles.resultMacroItem}>
                 <Text style={[styles.resultMacroValue, { color: Theme.colors.fat }]}>
                   {analysisResult.fat}g
@@ -235,24 +360,15 @@ const CameraScreen = (): React.JSX.Element => {
     );
   }
 
-  // Image preview / analyzing state
   if (capturedImage) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.previewWrapper}>
           <Image source={{ uri: capturedImage }} style={styles.previewImage} resizeMode="cover" />
 
-          {isAnalyzing && (
-            <View style={styles.analyzingOverlay}>
-              <ActivityIndicator size="large" color={Theme.colors.primary} />
-              <Text style={styles.analyzingTitle}>Analyzing your food...</Text>
-              <Text style={styles.analyzingSubtitle}>
-                Identifying ingredients and estimating nutrition
-              </Text>
-            </View>
-          )}
-
-          {!isAnalyzing && (
+          {isAnalyzing ? (
+            <AnalyzingOverlay />
+          ) : (
             <View style={styles.previewControls}>
               <TouchableOpacity style={styles.previewRetake} onPress={resetCamera}>
                 <Ionicons name="close" size={22} color={Theme.colors.text} />
@@ -269,13 +385,17 @@ const CameraScreen = (): React.JSX.Element => {
     );
   }
 
-  // Camera live view
   return (
     <SafeAreaView style={styles.cameraContainer}>
       <CameraView ref={cameraRef} style={styles.camera} facing="back">
-        {/* Top bar */}
         <View style={styles.cameraTopBar}>
-          <TouchableOpacity style={styles.cameraNavButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.cameraNavButton}
+            onPress={() => {
+              haptics.light();
+              navigation.goBack();
+            }}
+          >
             <Ionicons name="close" size={26} color="#FFFFFF" />
           </TouchableOpacity>
           {!isPremium && scansRemaining !== null && (
@@ -288,13 +408,16 @@ const CameraScreen = (): React.JSX.Element => {
           </TouchableOpacity>
         </View>
 
-        {/* Focus guide */}
         <View style={styles.focusArea}>
-          <View style={styles.focusCorner} />
+          <View style={styles.focusGuide}>
+            <View style={[styles.focusCorner, styles.focusTopLeft]} />
+            <View style={[styles.focusCorner, styles.focusTopRight]} />
+            <View style={[styles.focusCorner, styles.focusBottomLeft]} />
+            <View style={[styles.focusCorner, styles.focusBottomRight]} />
+          </View>
           <Text style={styles.focusText}>Center your food in the frame</Text>
         </View>
 
-        {/* Capture button */}
         <View style={styles.captureArea}>
           <TouchableOpacity style={styles.captureButton} onPress={takePicture} activeOpacity={0.7}>
             <View style={styles.captureInner} />
@@ -304,6 +427,92 @@ const CameraScreen = (): React.JSX.Element => {
     </SafeAreaView>
   );
 };
+
+const overlayStyles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(11, 26, 46, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  outerRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  spinnerRing: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: 'transparent',
+    borderTopColor: Theme.colors.primary,
+    borderRightColor: 'rgba(46, 213, 115, 0.3)',
+  },
+  spinnerArc: {
+    width: 0,
+    height: 0,
+  },
+  iconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: Theme.colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 32,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Theme.colors.primary,
+  },
+  stepsContainer: {
+    gap: 14,
+    width: '100%',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Theme.colors.inactive,
+  },
+  stepDotActive: {
+    backgroundColor: Theme.colors.primary,
+  },
+  stepLabel: {
+    fontSize: 15,
+    color: Theme.colors.inactive,
+  },
+  stepLabelActive: {
+    color: Theme.colors.text,
+    fontWeight: '600',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -320,6 +529,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
+  loadingPulse: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Theme.colors.surface,
+  },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -328,41 +543,40 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
   navTitle: {
-    fontSize: Theme.typography.fontSize.lg,
+    fontSize: 18,
     fontWeight: '700',
     color: Theme.colors.text,
   },
   navPlaceholder: {
-    width: 40,
+    width: 44,
   },
 
-  // Permission denied state
   permissionIconContainer: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: Theme.colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
   },
   permissionTitle: {
-    fontSize: Theme.typography.fontSize.xl,
+    fontSize: 20,
     fontWeight: '700',
     color: Theme.colors.text,
     marginBottom: 12,
     textAlign: 'center',
   },
   permissionDescription: {
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     color: Theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
@@ -374,26 +588,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     borderRadius: Theme.border.radius.large,
     marginBottom: 20,
+    minHeight: 52,
+    justifyContent: 'center',
     ...Theme.shadow.medium,
   },
   permissionButtonText: {
     color: '#FFFFFF',
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     fontWeight: '700',
   },
   galleryFallback: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    gap: 8,
+    minHeight: 44,
   },
   galleryFallbackText: {
     color: Theme.colors.primary,
-    fontSize: Theme.typography.fontSize.sm,
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
   },
 
-  // Camera live view
   camera: {
     flex: 1,
   },
@@ -428,13 +644,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  focusCorner: {
-    width: 240,
-    height: 240,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 24,
+  focusGuide: {
+    width: 260,
+    height: 260,
+    position: 'relative',
     marginBottom: 16,
+  },
+  focusCorner: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: 'rgba(46, 213, 115, 0.8)',
+  },
+  focusTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 16,
+  },
+  focusTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderTopRightRadius: 16,
+  },
+  focusBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomLeftRadius: 16,
+  },
+  focusBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderBottomRightRadius: 16,
   },
   focusText: {
     color: 'rgba(255,255,255,0.8)',
@@ -465,32 +713,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
 
-  // Preview state
   previewWrapper: {
     flex: 1,
   },
   previewImage: {
     flex: 1,
     width: '100%',
-  },
-  analyzingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(11,26,46,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  analyzingTitle: {
-    color: '#FFFFFF',
-    fontSize: Theme.typography.fontSize.lg,
-    fontWeight: '700',
-    marginTop: 20,
-  },
-  analyzingSubtitle: {
-    color: Theme.colors.textSecondary,
-    fontSize: Theme.typography.fontSize.sm,
-    marginTop: 8,
-    textAlign: 'center',
-    paddingHorizontal: 40,
   },
   previewControls: {
     position: 'absolute',
@@ -509,10 +737,11 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     backgroundColor: Theme.colors.surface,
     gap: 8,
+    minHeight: 52,
   },
   previewRetakeText: {
     color: Theme.colors.text,
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     fontWeight: '600',
   },
   previewAnalyze: {
@@ -524,14 +753,14 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     backgroundColor: Theme.colors.primary,
     gap: 8,
+    minHeight: 52,
   },
   previewAnalyzeText: {
     color: '#FFFFFF',
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     fontWeight: '700',
   },
 
-  // Result state
   resultContainer: {
     flex: 1,
   },
@@ -548,7 +777,7 @@ const styles = StyleSheet.create({
     ...Theme.shadow.medium,
   },
   resultFoodName: {
-    fontSize: Theme.typography.fontSize.xxl,
+    fontSize: 24,
     fontWeight: '700',
     color: Theme.colors.text,
     textAlign: 'center',
@@ -569,7 +798,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.border,
   },
   resultMacroValue: {
-    fontSize: Theme.typography.fontSize.xl,
+    fontSize: 20,
     fontWeight: '700',
     color: Theme.colors.text,
   },
@@ -595,10 +824,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Theme.colors.border,
     gap: 8,
+    minHeight: 52,
   },
   retakeButtonText: {
     color: Theme.colors.text,
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     fontWeight: '600',
   },
   confirmButton: {
@@ -610,11 +840,12 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     backgroundColor: Theme.colors.primary,
     gap: 8,
+    minHeight: 52,
     ...Theme.shadow.medium,
   },
   confirmButtonText: {
     color: '#FFFFFF',
-    fontSize: Theme.typography.fontSize.md,
+    fontSize: 16,
     fontWeight: '700',
   },
 });

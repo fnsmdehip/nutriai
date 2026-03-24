@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Nutri AI",
+    "name": "NutriAI",
     "slug": "nutri-ai",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,16 +11,14 @@
       "resizeMode": "contain",
       "backgroundColor": "#0B1A2E"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nutriai.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Nutri AI uses the camera to take pictures of food for nutrition analysis",
-        "NSPhotoLibraryUsageDescription": "Nutri AI needs access to your photos to analyze food images",
+        "NSCameraUsageDescription": "NutriAI uses your camera to photograph meals and instantly analyze their nutritional content.",
+        "NSPhotoLibraryUsageDescription": "NutriAI needs access to your photos to analyze food images for nutrition tracking.",
         "UIRequiresFullScreen": true,
         "UIStatusBarHidden": false,
         "SKAdNetworkItems": [
@@ -60,19 +58,7 @@
       "enabled": true,
       "fallbackToCacheTimeout": 0
     },
-    "plugins": [
-      "expo-camera",
-      "expo-image-picker",
-      [
-        "expo-updates",
-        {
-          "initialConfig": {
-            "checkAutomatically": "ON_LOAD"
-          }
-        }
-      ],
-      "expo-dev-client"
-    ],
+    "plugins": ["expo-camera", "expo-image-picker", "expo-font", "expo-haptics"],
     "owner": "fnsmdehip",
     "sdkVersion": "51.0.0",
     "appVersionSource": "expo-updates",
