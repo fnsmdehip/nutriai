@@ -59,6 +59,8 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: Theme.spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   disabled: {
     opacity: Theme.opacity.disabled,

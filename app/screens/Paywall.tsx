@@ -351,10 +351,12 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontSize: 16,
+    fontWeight: '300',
     color: Theme.colors.textSecondary,
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 24,
+    lineHeight: 26,
+    letterSpacing: 0.2,
   },
   personalizedText: {
     fontSize: 14,
@@ -381,6 +383,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   featureChipText: {
     fontSize: 13,

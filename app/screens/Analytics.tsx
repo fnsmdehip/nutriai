@@ -413,6 +413,8 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.round,
     gap: 4,
     minHeight: 44,
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.15)',
   },
   premiumBadgeText: {
     fontSize: 12,
@@ -426,6 +428,8 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   toggleButton: {
     flex: 1,
@@ -459,10 +463,12 @@ const styles = StyleSheet.create({
     marginTop: 40,
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   section: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 24,
   },
   sectionTitle: {
     fontSize: 18,
@@ -474,6 +480,8 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
   chart: {
@@ -517,6 +525,8 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
   statValue: {
@@ -524,6 +534,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Theme.colors.text,
     marginTop: 8,
+    fontVariant: ['tabular-nums'] as any,
   },
   statLabel: {
     fontSize: 12,
@@ -536,6 +547,8 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     padding: 20,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
   streakIconContainer: {

@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 24,
   },
   sectionLabel: {
     fontSize: 12,
@@ -429,6 +429,8 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
 
@@ -438,6 +440,8 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
   subscriptionIcon: {
@@ -480,6 +484,8 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     marginTop: 8,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
   subscriptionDetailRow: {

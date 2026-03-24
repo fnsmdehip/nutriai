@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Theme } from '../utils/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -126,7 +127,7 @@ const SplashScreen = ({ onFinish }: SplashScreenProps): React.JSX.Element => {
               },
             ]}
           >
-            <Text style={styles.logoEmoji}>{'\uD83E\uDD66'}</Text>
+            <Ionicons name="leaf" size={52} color={Theme.colors.primary} />
           </Animated.View>
         </Animated.View>
 
@@ -183,8 +184,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Theme.shadow.large,
   },
-  logoEmoji: {
-    fontSize: 52,
+  logoIcon: {
+    // Ionicon replaces emoji
   },
   title: {
     fontSize: 42,

@@ -182,7 +182,7 @@ const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element =>
       <View style={styles.welcomeHero}>
         <View style={styles.heroGlowRing}>
           <View style={styles.heroIconCircle}>
-            <Text style={styles.heroEmoji}>{'\uD83D\uDCF7'}</Text>
+            <Ionicons name="nutrition" size={52} color={Theme.colors.primary} />
           </View>
         </View>
         <Text style={styles.welcomeTitle}>Track Nutrition{'\n'}With Your Camera</Text>
@@ -631,8 +631,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Theme.shadow.medium,
   },
-  heroEmoji: {
-    fontSize: 48,
+  heroIcon: {
+    // Ionicon replaces emoji
   },
   welcomeTitle: {
     fontSize: 32,
@@ -643,11 +643,13 @@ const styles = StyleSheet.create({
   },
   welcomeSubtitle: {
     fontSize: 16,
+    fontWeight: '300',
     color: Theme.colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    marginTop: 12,
+    lineHeight: 26,
+    marginTop: 16,
     paddingHorizontal: 8,
+    letterSpacing: 0.2,
   },
   featureList: {
     gap: 20,
@@ -658,6 +660,9 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    ...Theme.shadow.small,
   },
   featureIconCircle: {
     width: 48,
@@ -841,10 +846,10 @@ const styles = StyleSheet.create({
     ...Theme.shadow.large,
   },
   calorieHeroNumber: {
-    fontSize: 48,
+    fontSize: 56,
     fontWeight: '200',
     color: Theme.colors.text,
-    letterSpacing: -1,
+    letterSpacing: -2,
   },
   calorieHeroUnit: {
     fontSize: 14,
@@ -862,6 +867,9 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.medium,
     padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    ...Theme.shadow.small,
   },
   macroTargetDot: {
     width: 8,
@@ -886,6 +894,8 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   adjustNoteText: {
     fontSize: 14,

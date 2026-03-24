@@ -70,11 +70,12 @@ function MainTabs(): React.JSX.Element {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => getTabBarIcon(route.name, focused, color, size),
-        tabBarActiveTintColor: Theme.colors.primary,
-        tabBarInactiveTintColor: Theme.colors.inactive,
+        tabBarActiveTintColor: '#2ED573',
+        tabBarInactiveTintColor: '#6B7280',
         tabBarStyle: {
           backgroundColor: Theme.colors.surface,
-          borderTopWidth: 0,
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(255,255,255,0.04)',
           elevation: 0,
           height: 88,
           paddingBottom: 28,

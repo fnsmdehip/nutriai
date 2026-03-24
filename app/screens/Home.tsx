@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
+import Svg, { Circle } from 'react-native-svg';
 
 import { Theme } from '../utils/theme';
 import { haptics } from '../utils/haptics';
@@ -67,9 +68,12 @@ const HomeScreen = (): React.JSX.Element => {
     return `${h}:${m} ${ampm}`;
   };
 
-  const ringSize = 120;
+  const ringSize = 140;
   const ringStrokeWidth = 8;
+  const ringRadius = (ringSize - ringStrokeWidth) / 2;
+  const ringCircumference = 2 * Math.PI * ringRadius;
   const progressColor = calorieProgress >= 1 ? Theme.colors.error : Theme.colors.primary;
+  const strokeDashoffset = ringCircumference * (1 - calorieProgress);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -87,7 +91,7 @@ const HomeScreen = (): React.JSX.Element => {
             }}
             activeOpacity={0.8}
           >
-            <Ionicons name="camera-outline" size={14} color={Theme.colors.primary} />
+            <Ionicons name="camera-outline" size={13} color={Theme.colors.textSecondary} />
             <Text style={styles.scanBadgeText}>{scansRemaining} scans left</Text>
           </TouchableOpacity>
         )}
@@ -108,24 +112,36 @@ const HomeScreen = (): React.JSX.Element => {
         <View style={styles.calorieCard}>
           <View style={styles.calorieRingContainer}>
             <View
-              style={[
-                styles.calorieRingOuter,
-                { width: ringSize, height: ringSize, borderRadius: ringSize / 2 },
-              ]}
+              style={{
+                width: ringSize,
+                height: ringSize,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <View
-                style={[
-                  styles.calorieRingProgress,
-                  {
-                    width: ringSize,
-                    height: ringSize,
-                    borderRadius: ringSize / 2,
-                    borderWidth: ringStrokeWidth,
-                    borderColor: progressColor,
-                    opacity: calorieProgress,
-                  },
-                ]}
-              />
+              <Svg width={ringSize} height={ringSize} style={{ position: 'absolute' }}>
+                <Circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={ringRadius}
+                  stroke={Theme.colors.border}
+                  strokeWidth={ringStrokeWidth}
+                  fill="none"
+                />
+                <Circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={ringRadius}
+                  stroke={progressColor}
+                  strokeWidth={ringStrokeWidth}
+                  fill="none"
+                  strokeDasharray={`${ringCircumference}`}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  rotation="-90"
+                  origin={`${ringSize / 2}, ${ringSize / 2}`}
+                />
+              </Svg>
               <View style={styles.calorieRingInner}>
                 <Text style={styles.calorieNumber}>{remaining.calories}</Text>
                 <Text style={styles.calorieUnit}>cal left</Text>
@@ -292,17 +308,17 @@ const styles = StyleSheet.create({
   scanBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(46, 213, 115, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: Theme.border.radius.round,
     gap: 4,
-    minHeight: 44,
+    minHeight: 34,
   },
   scanBadgeText: {
-    fontSize: 13,
-    color: Theme.colors.primary,
-    fontWeight: '600',
+    fontSize: 12,
+    color: Theme.colors.textSecondary,
+    fontWeight: '500',
   },
   scrollView: {
     flex: 1,
@@ -313,29 +329,23 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: Theme.border.radius.medium,
     padding: 20,
-    ...Theme.shadow.small,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    ...Theme.shadow.medium,
   },
   calorieRingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 20,
-  },
-  calorieRingOuter: {
-    borderWidth: 6,
-    borderColor: Theme.colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calorieRingProgress: {
-    position: 'absolute',
+    marginRight: 16,
   },
   calorieRingInner: {
     alignItems: 'center',
   },
   calorieNumber: {
-    fontSize: 32,
+    fontSize: 60,
     fontWeight: '200',
     color: Theme.colors.text,
+    letterSpacing: -2,
   },
   calorieUnit: {
     fontSize: 12,
@@ -359,6 +369,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: Theme.colors.text,
+    fontVariant: ['tabular-nums'] as any,
   },
   macroCard: {
     backgroundColor: Theme.colors.surface,
@@ -366,13 +377,16 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderRadius: Theme.border.radius.medium,
     padding: 20,
-    ...Theme.shadow.small,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    ...Theme.shadow.medium,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Theme.colors.text,
     marginBottom: 16,
+    letterSpacing: 0.2,
   },
   macroGrid: {
     gap: 14,
@@ -394,6 +408,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Theme.colors.text,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'] as any,
   },
   progressBarBg: {
     height: 8,
@@ -407,11 +422,13 @@ const styles = StyleSheet.create({
   },
   recentSection: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 28,
   },
   emptyContainer: {
     backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   foodCard: {
     flexDirection: 'row',
@@ -421,6 +438,8 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
     minHeight: 64,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.small,
   },
   foodIcon: {
@@ -444,6 +463,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Theme.colors.textSecondary,
     marginTop: 2,
+    lineHeight: 18,
+    fontVariant: ['tabular-nums'] as any,
   },
   foodTime: {
     fontSize: 12,

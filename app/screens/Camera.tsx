@@ -856,6 +856,8 @@ const styles = StyleSheet.create({
     marginTop: -30,
     borderRadius: Theme.border.radius.medium,
     padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Theme.shadow.medium,
   },
   resultFoodName: {
