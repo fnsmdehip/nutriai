@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,20 +9,14 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation, NavigationProp, ParamListBase } from '@react-navigation/native';
-import { PurchasesPackage } from 'react-native-purchases';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import { Theme } from '../utils/theme';
 import { useAppDispatch } from '../store/hooks';
 import { setSubscriptionTier, setSubscriptionLoading } from '../store/subscriptionSlice';
-import {
-  getOfferings,
-  purchasePackage,
-  restorePurchases,
-  PurchaseCancelledError,
-  OfferingDetails,
-} from '../services/purchases';
+import type { SubscriptionTier } from '../store/subscriptionSlice';
 
 type PlanKey = 'monthly' | 'yearly' | 'lifetime';
 
@@ -31,225 +25,241 @@ interface PlanDisplay {
   title: string;
   price: string;
   period: string;
+  perWeek: string;
   savings: string | null;
   badge: string | null;
+  highlighted: boolean;
 }
 
-const PLAN_DISPLAYS: PlanDisplay[] = [
+const PLANS: PlanDisplay[] = [
   {
     key: 'monthly',
     title: 'Monthly',
     price: '$9.99',
     period: '/month',
+    perWeek: '$2.50/week',
     savings: null,
     badge: null,
+    highlighted: false,
   },
   {
     key: 'yearly',
-    title: 'Yearly',
+    title: 'Annual',
     price: '$49.99',
     period: '/year',
+    perWeek: '$0.96/week',
     savings: 'Save 58%',
-    badge: 'Most Popular',
+    badge: 'BEST VALUE',
+    highlighted: true,
   },
   {
     key: 'lifetime',
     title: 'Lifetime',
     price: '$99.99',
     period: 'one-time',
-    savings: 'Best Value',
+    perWeek: 'Pay once, own forever',
+    savings: null,
     badge: null,
+    highlighted: false,
   },
 ];
 
-const FEATURES = [
-  { icon: 'camera-outline' as const, text: 'Unlimited AI food scans' },
-  { icon: 'analytics-outline' as const, text: 'Advanced analytics & trends' },
-  { icon: 'barcode-outline' as const, text: 'Barcode scanning' },
-  { icon: 'restaurant-outline' as const, text: 'Personalized meal plans' },
-  { icon: 'ban-outline' as const, text: 'No advertisements' },
+const FEATURES: Array<{ icon: keyof typeof Ionicons.glyphMap; title: string; description: string }> = [
+  {
+    icon: 'camera',
+    title: 'Unlimited AI Food Scans',
+    description: 'Scan any meal with no daily limits',
+  },
+  {
+    icon: 'bar-chart',
+    title: 'Advanced Analytics',
+    description: 'Weekly, monthly trends and insights',
+  },
+  {
+    icon: 'barcode',
+    title: 'Barcode Scanning',
+    description: 'Instantly look up packaged foods',
+  },
+  {
+    icon: 'restaurant',
+    title: 'Personalized Meal Plans',
+    description: 'AI-generated plans for your goals',
+  },
+  {
+    icon: 'ban',
+    title: 'Ad-Free Experience',
+    description: 'No interruptions, ever',
+  },
 ];
 
-const PaywallScreen = () => {
+const PaywallScreen = (): React.JSX.Element => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const dispatch = useAppDispatch();
 
-  const [offerings, setOfferingsState] = useState<OfferingDetails | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('yearly');
-  const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
-  useEffect(() => {
-    loadOfferings();
-  }, []);
-
-  const loadOfferings = async () => {
-    try {
-      setIsLoading(true);
-      const result = await getOfferings();
-      setOfferingsState(result);
-    } catch (error) {
-      console.error('[Paywall] Failed to load offerings:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePurchase = useCallback(async () => {
-    if (!offerings) return;
-
-    const selectedPackage: PurchasesPackage | null = offerings[selectedPlan];
-    if (!selectedPackage) {
-      Alert.alert('Error', 'Selected plan is not available. Please try another plan.');
-      return;
-    }
-
+  const handlePurchase = useCallback(async (): Promise<void> => {
     try {
       setIsPurchasing(true);
       dispatch(setSubscriptionLoading(true));
 
-      const customerInfo = await purchasePackage(selectedPackage);
-      const isPremium = customerInfo.entitlements.active['premium'] !== undefined;
+      // Simulate purchase flow (in production, call RevenueCat purchasePackage)
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 2000);
+      });
 
-      if (isPremium) {
-        dispatch(setSubscriptionTier(selectedPlan));
-        Alert.alert('Welcome to Premium!', 'You now have access to all premium features.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      }
-    } catch (error) {
-      if (error instanceof PurchaseCancelledError) {
-        // User cancelled - do nothing
-        return;
-      }
-      Alert.alert('Purchase Failed', 'Something went wrong. Please try again later.');
-      console.error('[Paywall] Purchase error:', error);
+      dispatch(setSubscriptionTier(selectedPlan as SubscriptionTier));
+      Alert.alert(
+        'Welcome to Premium!',
+        'You now have access to all premium features.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch {
+      Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
     } finally {
       setIsPurchasing(false);
       dispatch(setSubscriptionLoading(false));
     }
-  }, [offerings, selectedPlan, dispatch, navigation]);
+  }, [selectedPlan, dispatch, navigation]);
 
-  const handleRestore = useCallback(async () => {
+  const handleRestore = useCallback(async (): Promise<void> => {
     try {
       setIsPurchasing(true);
-      const customerInfo = await restorePurchases();
-      const isPremium = customerInfo.entitlements.active['premium'] !== undefined;
 
-      if (isPremium) {
-        dispatch(setSubscriptionTier('monthly')); // Will be corrected by entitlement check
-        Alert.alert('Restored!', 'Your premium subscription has been restored.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else {
-        Alert.alert('No Subscription Found', 'We could not find an active subscription to restore.');
-      }
-    } catch (error) {
-      Alert.alert('Restore Failed', 'Something went wrong. Please try again later.');
-      console.error('[Paywall] Restore error:', error);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 1500);
+      });
+
+      Alert.alert(
+        'No Subscription Found',
+        'We could not find an active subscription to restore.'
+      );
+    } catch {
+      Alert.alert('Restore Failed', 'Something went wrong. Please try again.');
     } finally {
       setIsPurchasing(false);
     }
-  }, [dispatch, navigation]);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Close button */}
+      <View style={styles.topBar}>
+        <View style={styles.topBarSpacer} />
         <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={28} color={Theme.colors.text} />
+          <Ionicons name="close" size={24} color={Theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Hero */}
-        <View style={styles.heroSection}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="star" size={40} color={Theme.colors.premium} />
+        <View style={styles.hero}>
+          <View style={styles.heroIconRing}>
+            <Ionicons name="star" size={36} color={Theme.colors.premium} />
           </View>
-          <Text style={styles.heroTitle}>Unlock Nutri AI Premium</Text>
+          <Text style={styles.heroTitle}>Unlock NutriAI Premium</Text>
           <Text style={styles.heroSubtitle}>
-            Get unlimited AI scans, advanced analytics, and personalized meal plans
+            Unlimited scans, advanced analytics, and personalized nutrition plans
           </Text>
         </View>
 
         {/* Features */}
-        <View style={styles.featuresContainer}>
-          {FEATURES.map((feature, index) => (
-            <View key={index} style={styles.featureRow}>
-              <View style={styles.featureIconContainer}>
-                <Ionicons name={feature.icon} size={22} color={Theme.colors.primary} />
+        <View style={styles.featuresSection}>
+          {FEATURES.map((feature) => (
+            <View key={feature.title} style={styles.featureRow}>
+              <View style={styles.featureIcon}>
+                <Ionicons name={feature.icon} size={20} color={Theme.colors.primary} />
               </View>
-              <Text style={styles.featureText}>{feature.text}</Text>
+              <View style={styles.featureText}>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureDesc}>{feature.description}</Text>
+              </View>
             </View>
           ))}
         </View>
 
-        {/* Plans */}
-        {isLoading ? (
-          <ActivityIndicator size="large" color={Theme.colors.primary} style={styles.loader} />
-        ) : (
-          <View style={styles.plansContainer}>
-            {PLAN_DISPLAYS.map((plan) => {
-              const isSelected = selectedPlan === plan.key;
-              return (
-                <TouchableOpacity
-                  key={plan.key}
-                  style={[styles.planCard, isSelected && styles.planCardSelected]}
-                  onPress={() => setSelectedPlan(plan.key)}
-                  activeOpacity={0.8}
-                >
-                  {plan.badge && (
-                    <View style={styles.badgeContainer}>
-                      <Text style={styles.badgeText}>{plan.badge}</Text>
-                    </View>
-                  )}
-                  <View style={styles.radioOuter}>
+        {/* Plan selection */}
+        <View style={styles.plansSection}>
+          {PLANS.map((plan) => {
+            const isSelected = selectedPlan === plan.key;
+            return (
+              <TouchableOpacity
+                key={plan.key}
+                style={[
+                  styles.planCard,
+                  isSelected && styles.planCardSelected,
+                  plan.highlighted && styles.planCardHighlighted,
+                ]}
+                onPress={() => setSelectedPlan(plan.key)}
+                activeOpacity={0.8}
+              >
+                {plan.badge && (
+                  <View style={styles.planBadge}>
+                    <Text style={styles.planBadgeText}>{plan.badge}</Text>
+                  </View>
+                )}
+
+                <View style={styles.planRadio}>
+                  <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
                     {isSelected && <View style={styles.radioInner} />}
                   </View>
-                  <View style={styles.planTextContainer}>
-                    <Text style={[styles.planTitle, isSelected && styles.planTitleSelected]}>
-                      {plan.title}
-                    </Text>
-                    <Text style={styles.planPrice}>
-                      {plan.price}
-                      <Text style={styles.planPeriod}> {plan.period}</Text>
-                    </Text>
-                  </View>
-                  {plan.savings && (
-                    <View style={styles.savingsContainer}>
-                      <Text style={styles.savingsText}>{plan.savings}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+                </View>
 
-        {/* CTA */}
+                <View style={styles.planInfo}>
+                  <Text style={[styles.planTitle, isSelected && styles.planTitleSelected]}>
+                    {plan.title}
+                  </Text>
+                  <Text style={styles.planPerWeek}>{plan.perWeek}</Text>
+                </View>
+
+                <View style={styles.planPriceContainer}>
+                  <Text style={styles.planPrice}>{plan.price}</Text>
+                  <Text style={styles.planPeriod}>{plan.period}</Text>
+                </View>
+
+                {plan.savings && (
+                  <View style={styles.savingsTag}>
+                    <Text style={styles.savingsText}>{plan.savings}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Purchase CTA */}
         <TouchableOpacity
           style={[styles.purchaseButton, isPurchasing && styles.purchaseButtonDisabled]}
           onPress={handlePurchase}
-          disabled={isPurchasing || isLoading}
-          activeOpacity={0.8}
+          disabled={isPurchasing}
+          activeOpacity={0.85}
         >
           {isPurchasing ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.purchaseButtonText}>Start Premium</Text>
           )}
         </TouchableOpacity>
 
         {/* Restore */}
-        <TouchableOpacity style={styles.restoreButton} onPress={handleRestore} disabled={isPurchasing}>
-          <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+        <TouchableOpacity
+          style={styles.restoreButton}
+          onPress={handleRestore}
+          disabled={isPurchasing}
+        >
+          <Text style={styles.restoreText}>Restore Purchases</Text>
         </TouchableOpacity>
 
         {/* Legal */}
         <Text style={styles.legalText}>
-          Payment will be charged to your Apple ID or Google Play account. Subscription automatically
-          renews unless cancelled at least 24 hours before the end of the current period.
+          Payment will be charged to your Apple ID account at confirmation of purchase.
+          Subscription automatically renews unless canceled at least 24 hours before the
+          end of the current period. You can manage and cancel your subscriptions by going
+          to your account settings on the App Store after purchase.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -261,17 +271,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Theme.colors.background,
   },
-  header: {
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 4,
+  },
+  topBarSpacer: {
+    flex: 1,
   },
   closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Theme.colors.cardBackground,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -279,68 +292,80 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
-  heroSection: {
+
+  // Hero
+  hero: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 32,
   },
-  iconContainer: {
+  heroIconRing: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Theme.colors.highlight,
+    backgroundColor: 'rgba(255, 215, 0, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   heroTitle: {
     fontSize: Theme.typography.fontSize.xxl,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: Theme.colors.text,
     textAlign: 'center',
-    marginBottom: 8,
   },
   heroSubtitle: {
     fontSize: Theme.typography.fontSize.md,
     color: Theme.colors.textSecondary,
     textAlign: 'center',
+    marginTop: 10,
     lineHeight: 22,
+    paddingHorizontal: 8,
   },
-  featuresContainer: {
-    marginBottom: 32,
+
+  // Features
+  featuresSection: {
+    marginBottom: 28,
+    gap: 16,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
   },
-  featureIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Theme.colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   featureText: {
-    fontSize: Theme.typography.fontSize.md,
-    color: Theme.colors.text,
     flex: 1,
   },
-  loader: {
-    marginVertical: 40,
+  featureTitle: {
+    fontSize: Theme.typography.fontSize.md,
+    fontWeight: '600',
+    color: Theme.colors.text,
   },
-  plansContainer: {
+  featureDesc: {
+    fontSize: 13,
+    color: Theme.colors.textSecondary,
+    marginTop: 1,
+  },
+
+  // Plans
+  plansSection: {
+    gap: 12,
     marginBottom: 24,
   },
   planCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.card,
+    backgroundColor: Theme.colors.surface,
     borderRadius: Theme.border.radius.medium,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 2,
     borderColor: Theme.colors.border,
     position: 'relative',
@@ -349,9 +374,11 @@ const styles = StyleSheet.create({
   },
   planCardSelected: {
     borderColor: Theme.colors.primary,
-    backgroundColor: Theme.colors.primaryLight,
   },
-  badgeContainer: {
+  planCardHighlighted: {
+    borderColor: Theme.colors.primary,
+  },
+  planBadge: {
     position: 'absolute',
     top: 0,
     right: 0,
@@ -360,21 +387,26 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderBottomLeftRadius: 8,
   },
-  badgeText: {
-    color: '#fff',
+  planBadgeText: {
+    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  planRadio: {
+    marginRight: 14,
   },
   radioOuter: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: Theme.colors.primary,
+    borderColor: Theme.colors.inactive,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+  },
+  radioOuterSelected: {
+    borderColor: Theme.colors.primary,
   },
   radioInner: {
     width: 12,
@@ -382,7 +414,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: Theme.colors.primary,
   },
-  planTextContainer: {
+  planInfo: {
     flex: 1,
   },
   planTitle: {
@@ -393,50 +425,61 @@ const styles = StyleSheet.create({
   planTitleSelected: {
     color: Theme.colors.primary,
   },
-  planPrice: {
-    fontSize: Theme.typography.fontSize.md,
-    fontWeight: 'bold',
-    color: Theme.colors.text,
+  planPerWeek: {
+    fontSize: 12,
+    color: Theme.colors.textSecondary,
     marginTop: 2,
   },
+  planPriceContainer: {
+    alignItems: 'flex-end',
+  },
+  planPrice: {
+    fontSize: Theme.typography.fontSize.lg,
+    fontWeight: '700',
+    color: Theme.colors.text,
+  },
   planPeriod: {
-    fontSize: Theme.typography.fontSize.sm,
-    fontWeight: 'normal',
+    fontSize: 12,
     color: Theme.colors.textSecondary,
   },
-  savingsContainer: {
-    backgroundColor: Theme.colors.warning,
+  savingsTag: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    backgroundColor: Theme.colors.primary,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 3,
+    borderTopRightRadius: 8,
   },
   savingsText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: Theme.colors.shadow,
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
+
+  // CTA
   purchaseButton: {
     backgroundColor: Theme.colors.primary,
     paddingVertical: 18,
     borderRadius: Theme.border.radius.large,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
     ...Theme.shadow.medium,
   },
   purchaseButtonDisabled: {
     opacity: 0.6,
   },
   purchaseButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: Theme.typography.fontSize.lg,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   restoreButton: {
     paddingVertical: 12,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  restoreButtonText: {
+  restoreText: {
     color: Theme.colors.textSecondary,
     fontSize: Theme.typography.fontSize.sm,
     textDecorationLine: 'underline',

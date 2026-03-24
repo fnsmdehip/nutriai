@@ -1,106 +1,98 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useDispatch } from 'react-redux';
-import { completeOnboarding, setGender, setGoal, setHeight, setWeight } from '../store/userSlice';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { useAppDispatch } from '../store/hooks';
+import { completeOnboarding, setGender, setGoal } from '../store/userSlice';
+import { Theme } from '../utils/theme';
 
-type OnboardingProps = {
-  navigation: NativeStackNavigationProp<any, any>;
-};
+const STEPS = [
+  'Welcome',
+  'Gender',
+  'Workout Frequency',
+  'Height & Weight',
+  'Birthdate',
+  'Goal',
+  'Diet Type',
+  'Obstacles',
+] as const;
 
-const OnboardingScreen = ({ navigation }: OnboardingProps) => {
+const OnboardingScreen = (): React.JSX.Element => {
   const [step, setStep] = useState(0);
-  const [userInfo, setUserInfo] = useState({
-    gender: '',
-    workoutFrequency: '',
-    height: '',
-    weight: '',
-    birthdate: '',
-    goal: '',
-    dietType: '',
-    obstacles: [],
-    aims: []
-  });
+  const dispatch = useAppDispatch();
 
-  const dispatch = useDispatch();
-
-  // Mock completion for demo purposes
-  const handleContinue = () => {
-    if (step < 8) {
+  const handleContinue = (): void => {
+    if (step < STEPS.length - 1) {
       setStep(step + 1);
     } else {
-      // Save user info to Redux
-      dispatch(setGender(userInfo.gender as 'male' | 'female' | 'other'));
-      dispatch(setHeight(Number(userInfo.height)));
-      dispatch(setWeight(Number(userInfo.weight)));
-      dispatch(setGoal(userInfo.goal as 'lose' | 'maintain' | 'gain'));
+      dispatch(setGender('male'));
+      dispatch(setGoal('maintain'));
       dispatch(completeOnboarding());
-      
-      // Navigate to main app
-      navigation.replace('Main');
     }
   };
 
-  const renderStep = () => {
-    switch(step) {
-      case 0:
-        return (
-          <View style={styles.welcomeContainer}>
-            <View style={styles.mockPhoneFrame}>
-              <View style={styles.mockAppPreview}>
-                <Text style={styles.mockCalorieText}>2199</Text>
-                <Text style={styles.mockSubtitle}>Calories left</Text>
-                <View style={styles.mockMacros}>
-                  <View style={styles.mockMacroItem}>
-                    <Text style={styles.mockMacroValue}>161g</Text>
-                    <Text style={styles.mockMacroLabel}>Protein</Text>
-                  </View>
-                  <View style={styles.mockMacroItem}>
-                    <Text style={styles.mockMacroValue}>207g</Text>
-                    <Text style={styles.mockMacroLabel}>Carbs</Text>
-                  </View>
-                  <View style={styles.mockMacroItem}>
-                    <Text style={styles.mockMacroValue}>73g</Text>
-                    <Text style={styles.mockMacroLabel}>Fat</Text>
-                  </View>
+  const progressPercent = step === 0 ? 0 : (step / (STEPS.length - 1)) * 100;
+
+  if (step === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.welcomeContent}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="nutrition" size={56} color={Theme.colors.primary} />
+          </View>
+          <Text style={styles.welcomeTitle}>NutriAI</Text>
+          <Text style={styles.welcomeSubtitle}>
+            AI-powered calorie tracking made effortless
+          </Text>
+
+          <View style={styles.welcomeFeatures}>
+            {[
+              { icon: 'camera' as const, text: 'Snap a photo to log meals' },
+              { icon: 'bar-chart' as const, text: 'Track your nutrition goals' },
+              { icon: 'sparkles' as const, text: 'AI-powered food recognition' },
+            ].map((item) => (
+              <View key={item.text} style={styles.welcomeFeatureRow}>
+                <View style={styles.welcomeFeatureIcon}>
+                  <Ionicons name={item.icon} size={20} color={Theme.colors.primary} />
                 </View>
+                <Text style={styles.welcomeFeatureText}>{item.text}</Text>
               </View>
-            </View>
-            <Text style={styles.title}>Calorie tracking made easy</Text>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
-              <Text style={styles.buttonText}>Get Started</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.textLink}>
-              <Text style={styles.linkText}>Purchased on the web? Sign In</Text>
-            </TouchableOpacity>
+            ))}
           </View>
-        );
-      default:
-        return (
-          <View style={styles.stepContainer}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${(step) * 12.5}%` }]} />
-            </View>
-            <Text style={styles.stepTitle}>
-              {`Step ${step} of 8: ${["Gender", "Workout Frequency", "How You Found Us", 
-                "Height & Weight", "Birthdate", "Goal", "Diet Type", "Obstacles"][step-1]}`}
-            </Text>
-            <Text style={styles.stepDescription}>
-              Let's set up your profile to give you the best experience
-            </Text>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
-              <Text style={styles.buttonText}>Continue</Text>
-            </TouchableOpacity>
-          </View>
-        );
-    }
-  };
+
+          <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
+            <Text style={styles.primaryButtonText}>Get Started</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {renderStep()}
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.stepContent}>
+        <Text style={styles.stepCounter}>Step {step} of {STEPS.length - 1}</Text>
+        <Text style={styles.stepTitle}>{STEPS[step]}</Text>
+        <Text style={styles.stepDescription}>
+          This helps us personalize your nutrition targets and recommendations.
+        </Text>
+
+        <View style={styles.placeholderInputArea}>
+          <Ionicons name="create-outline" size={32} color={Theme.colors.inactive} />
+          <Text style={styles.placeholderText}>
+            Input fields for {STEPS[step].toLowerCase()} will appear here
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
+          <Text style={styles.primaryButtonText}>
+            {step === STEPS.length - 1 ? 'Finish Setup' : 'Continue'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -109,125 +101,126 @@ const OnboardingScreen = ({ navigation }: OnboardingProps) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.colors.background,
   },
-  scrollContainer: {
+  welcomeContent: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
-  welcomeContainer: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
+    paddingHorizontal: 32,
+    paddingBottom: 40,
   },
-  stepContainer: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    width: '100%',
-    paddingTop: 40,
-  },
-  mockPhoneFrame: {
-    width: 280,
-    height: 500,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 30,
-    marginBottom: 30,
-    overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  mockAppPreview: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
+  heroIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Theme.colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 24,
   },
-  mockCalorieText: {
-    fontSize: 48,
-    fontWeight: 'bold',
+  welcomeTitle: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: Theme.colors.text,
     marginBottom: 8,
   },
-  mockSubtitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 30,
+  welcomeSubtitle: {
+    fontSize: Theme.typography.fontSize.md,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 40,
   },
-  mockMacros: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  welcomeFeatures: {
     width: '100%',
-    marginTop: 20,
+    gap: 16,
+    marginBottom: 48,
   },
-  mockMacroItem: {
+  welcomeFeatureRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  mockMacroValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  welcomeFeatureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Theme.colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
   },
-  mockMacroLabel: {
-    fontSize: 16,
-    color: '#666',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  stepTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  stepDescription: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 30,
-    textAlign: 'center',
+  welcomeFeatureText: {
+    fontSize: Theme.typography.fontSize.md,
+    color: Theme.colors.text,
+    fontWeight: '500',
   },
   primaryButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    marginBottom: 20,
+    backgroundColor: Theme.colors.primary,
+    paddingVertical: 18,
+    borderRadius: Theme.border.radius.large,
     width: '100%',
     alignItems: 'center',
+    ...Theme.shadow.medium,
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  textLink: {
-    marginTop: 10,
-  },
-  linkText: {
-    color: '#000',
-    textDecorationLine: 'underline',
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: Theme.typography.fontSize.lg,
   },
   progressBar: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 4,
-    marginBottom: 30,
+    height: 4,
+    backgroundColor: Theme.colors.border,
+    marginHorizontal: 24,
+    borderRadius: 2,
+    marginTop: 8,
   },
   progressFill: {
-    height: '100%',
-    backgroundColor: '#000',
-    borderRadius: 4,
+    height: 4,
+    backgroundColor: Theme.colors.primary,
+    borderRadius: 2,
+  },
+  stepContent: {
+    flexGrow: 1,
+    paddingHorizontal: 32,
+    paddingTop: 40,
+    paddingBottom: 40,
+  },
+  stepCounter: {
+    fontSize: 13,
+    color: Theme.colors.primary,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  stepTitle: {
+    fontSize: Theme.typography.fontSize.xxl,
+    fontWeight: '700',
+    color: Theme.colors.text,
+    marginBottom: 12,
+  },
+  stepDescription: {
+    fontSize: Theme.typography.fontSize.md,
+    color: Theme.colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 40,
+  },
+  placeholderInputArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.border.radius.medium,
+    padding: 40,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    fontSize: Theme.typography.fontSize.sm,
+    color: Theme.colors.inactive,
+    textAlign: 'center',
+    marginTop: 12,
   },
 });
 
-export default OnboardingScreen; 
+export default OnboardingScreen;

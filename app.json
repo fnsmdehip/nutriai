@@ -5,11 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./app/assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./app/assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F8F5F0"
+      "backgroundColor": "#0B1A2E"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -34,7 +34,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./app/assets/adaptive-icon.png",
-        "backgroundColor": "#F8F5F0"
+        "backgroundColor": "#0B1A2E"
       },
       "package": "com.nutriai.app",
       "versionCode": 1,
@@ -71,17 +71,10 @@
           }
         }
       ],
-      "expo-dev-client",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-5277873663568466~6431629011",
-          "iosAppId": "ca-app-pub-5277873663568466~6431629011"
-        }
-      ]
+      "expo-dev-client"
     ],
     "owner": "fnsmdehip",
-    "sdkVersion": "48.0.0",
+    "sdkVersion": "51.0.0",
     "appVersionSource": "expo-updates",
     "cli": {
       "appVersionSource": "local"

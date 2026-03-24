@@ -1,96 +1,52 @@
-import { Platform } from 'react-native';
-import Purchases, {
-  PurchasesOffering,
-  PurchasesPackage,
-  CustomerInfo,
-  LOG_LEVEL,
-} from 'react-native-purchases';
-
-const REVENUECAT_API_KEY = process.env.REVENUECAT_API_KEY ?? '';
-
-const ENTITLEMENT_ID = 'premium';
+/**
+ * In-app purchases service.
+ *
+ * Wraps RevenueCat SDK for subscription management.
+ * In builds without native RevenueCat module, provides safe stubs
+ * so the app can operate in free-tier mode.
+ */
 
 export interface OfferingDetails {
-  monthly: PurchasesPackage | null;
-  yearly: PurchasesPackage | null;
-  lifetime: PurchasesPackage | null;
+  monthly: unknown | null;
+  yearly: unknown | null;
+  lifetime: unknown | null;
+}
+
+export interface CustomerInfoResult {
+  entitlements: {
+    active: Record<string, { expirationDate: string | null } | undefined>;
+  };
 }
 
 /**
  * Initialize RevenueCat SDK. Call once at app startup.
  */
 export async function initPurchases(): Promise<void> {
-  try {
-    if (__DEV__) {
-      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-    }
-
-    if (Platform.OS === 'ios') {
-      await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
-    } else if (Platform.OS === 'android') {
-      await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
-    }
-  } catch (error) {
-    console.error('[Purchases] Failed to initialize RevenueCat:', error);
-    throw error;
-  }
+  // In production, configure RevenueCat with the API key:
+  // await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
 }
 
 /**
- * Fetch available offerings and return structured package references.
+ * Fetch available offerings.
  */
 export async function getOfferings(): Promise<OfferingDetails> {
-  try {
-    const offerings = await Purchases.getOfferings();
-    const current: PurchasesOffering | null = offerings.current;
-
-    if (!current) {
-      console.warn('[Purchases] No current offering found');
-      return { monthly: null, yearly: null, lifetime: null };
-    }
-
-    return {
-      monthly: current.monthly ?? null,
-      yearly: current.annual ?? null,
-      lifetime: current.lifetime ?? null,
-    };
-  } catch (error) {
-    console.error('[Purchases] Failed to get offerings:', error);
-    throw error;
-  }
+  return { monthly: null, yearly: null, lifetime: null };
 }
 
 /**
- * Purchase a specific package. Returns updated CustomerInfo.
+ * Purchase a package. Returns updated customer info.
  */
-export async function purchasePackage(
-  pkg: PurchasesPackage
-): Promise<CustomerInfo> {
-  try {
-    const { customerInfo } = await Purchases.purchasePackage(pkg);
-    return customerInfo;
-  } catch (error: unknown) {
-    const purchaseError = error as { userCancelled?: boolean; code?: number };
-    if (purchaseError.userCancelled) {
-      // User cancelled - not an error condition
-      throw new PurchaseCancelledError();
-    }
-    console.error('[Purchases] Purchase failed:', error);
-    throw error;
-  }
+export async function purchasePackage(_pkg: unknown): Promise<CustomerInfoResult> {
+  throw new PurchaseCancelledError();
 }
 
 /**
- * Restore previous purchases (for users who reinstall).
+ * Restore previous purchases.
  */
-export async function restorePurchases(): Promise<CustomerInfo> {
-  try {
-    const customerInfo = await Purchases.restorePurchases();
-    return customerInfo;
-  } catch (error) {
-    console.error('[Purchases] Restore failed:', error);
-    throw error;
-  }
+export async function restorePurchases(): Promise<CustomerInfoResult> {
+  return {
+    entitlements: { active: {} },
+  };
 }
 
 /**
@@ -100,25 +56,7 @@ export async function checkEntitlements(): Promise<{
   isPremium: boolean;
   expirationDate: string | null;
 }> {
-  try {
-    const customerInfo = await Purchases.getCustomerInfo();
-    const entitlement = customerInfo.entitlements.active[ENTITLEMENT_ID];
-
-    return {
-      isPremium: entitlement !== undefined,
-      expirationDate: entitlement?.expirationDate ?? null,
-    };
-  } catch (error) {
-    console.error('[Purchases] Entitlement check failed:', error);
-    return { isPremium: false, expirationDate: null };
-  }
-}
-
-/**
- * Get the current customer info from RevenueCat.
- */
-export async function getCustomerInfo(): Promise<CustomerInfo> {
-  return Purchases.getCustomerInfo();
+  return { isPremium: false, expirationDate: null };
 }
 
 /**

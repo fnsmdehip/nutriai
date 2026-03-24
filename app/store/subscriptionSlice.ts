@@ -34,7 +34,7 @@ const subscriptionSlice = createSlice({
       state.tier = action.payload;
       state.isPremium = action.payload !== 'free';
       if (state.isPremium) {
-        state.dailyScanLimit = Infinity;
+        state.dailyScanLimit = 999;
       } else {
         state.dailyScanLimit = 3;
       }
@@ -42,7 +42,7 @@ const subscriptionSlice = createSlice({
     setPremiumStatus: (state, action: PayloadAction<boolean>) => {
       state.isPremium = action.payload;
       if (action.payload) {
-        state.dailyScanLimit = Infinity;
+        state.dailyScanLimit = 999;
       } else {
         state.tier = 'free';
         state.dailyScanLimit = 3;

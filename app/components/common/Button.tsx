@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import type { ViewStyle, TextStyle } from 'react-native';
 import { Theme } from '../../utils/theme';
 
 interface ButtonProps {
@@ -25,39 +26,32 @@ const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
-  // Get button container style based on variant
-  const getContainerStyle = () => {
+  const getContainerStyle = (): ViewStyle => {
     switch (variant) {
-      case 'primary':
-        return styles.primaryContainer;
       case 'secondary':
         return styles.secondaryContainer;
       case 'outline':
         return styles.outlineContainer;
       case 'text':
-        return styles.textContainer;
+        return styles.textVariantContainer;
       default:
         return styles.primaryContainer;
     }
   };
 
-  // Get text style based on variant
-  const getTextStyle = () => {
+  const getTextStyle = (): TextStyle => {
     switch (variant) {
-      case 'primary':
-        return styles.primaryText;
       case 'secondary':
         return styles.secondaryText;
       case 'outline':
         return styles.outlineText;
       case 'text':
-        return styles.textText;
+        return styles.textVariantText;
       default:
         return styles.primaryText;
     }
   };
 
-  // Get button size style
   const getSizeStyle = (): ViewStyle => {
     switch (size) {
       case 'small':
@@ -69,7 +63,6 @@ const Button: React.FC<ButtonProps> = ({
     }
   };
 
-  // Get text size style
   const getTextSizeStyle = (): TextStyle => {
     switch (size) {
       case 'small':
@@ -87,8 +80,8 @@ const Button: React.FC<ButtonProps> = ({
         styles.button,
         getContainerStyle(),
         getSizeStyle(),
-        fullWidth && styles.fullWidth,
-        disabled && styles.disabledContainer,
+        fullWidth ? styles.fullWidth : {},
+        disabled ? styles.disabledContainer : {},
         style,
       ]}
       onPress={onPress}
@@ -97,16 +90,16 @@ const Button: React.FC<ButtonProps> = ({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'outline' || variant === 'text' ? Theme.colors.primary : 'white'}
+          color={variant === 'outline' || variant === 'text' ? Theme.colors.primary : '#FFFFFF'}
           size="small"
         />
       ) : (
         <Text
           style={[
-            styles.text,
+            styles.buttonText,
             getTextStyle(),
             getTextSizeStyle(),
-            disabled && styles.disabledText,
+            disabled ? styles.disabledText : {},
             textStyle,
           ]}
         >
@@ -127,43 +120,40 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  // Variant styles - containers
   primaryContainer: {
     backgroundColor: Theme.colors.primary,
-    borderWidth: 0,
   },
   secondaryContainer: {
-    backgroundColor: Theme.colors.secondary,
-    borderWidth: 0,
+    backgroundColor: Theme.colors.surface,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
   },
   outlineContainer: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: Theme.colors.primary,
-  },
-  textContainer: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
     ...Theme.shadow.none,
   },
-  // Variant styles - text
-  text: {
+  textVariantContainer: {
+    backgroundColor: 'transparent',
+    ...Theme.shadow.none,
+  },
+  buttonText: {
     fontWeight: '600',
     textAlign: 'center',
   },
   primaryText: {
-    color: 'white',
+    color: '#FFFFFF',
   },
   secondaryText: {
-    color: 'white',
+    color: Theme.colors.text,
   },
   outlineText: {
     color: Theme.colors.primary,
   },
-  textText: {
+  textVariantText: {
     color: Theme.colors.primary,
   },
-  // Size styles - containers
   smallButton: {
     paddingVertical: Theme.spacing.xs,
     paddingHorizontal: Theme.spacing.md,
@@ -179,7 +169,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.xl,
     minHeight: 56,
   },
-  // Size styles - text
   smallText: {
     fontSize: Theme.typography.fontSize.sm,
   },
@@ -189,7 +178,6 @@ const styles = StyleSheet.create({
   largeText: {
     fontSize: Theme.typography.fontSize.lg,
   },
-  // Disabled styles
   disabledContainer: {
     opacity: Theme.opacity.disabled,
   },
@@ -198,4 +186,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Button; 
+export default Button;

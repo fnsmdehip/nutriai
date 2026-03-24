@@ -1,10 +1,10 @@
 /**
- * Enhanced food database service.
+ * Food database service.
  * Combines USDA FoodData Central API with Open Food Facts for barcode lookups.
  */
 
 const USDA_BASE_URL = 'https://api.nal.usda.gov/fdc/v1';
-const USDA_API_KEY = 'DEMO_KEY'; // USDA provides free access with DEMO_KEY (limited) or register for a key
+const USDA_API_KEY = 'DEMO_KEY';
 const OPEN_FOOD_FACTS_BASE_URL = 'https://world.openfoodfacts.org/api/v2';
 
 // ---------- Types ----------
@@ -38,12 +38,12 @@ export interface USDASearchResponse {
 
 export interface NutritionInfo {
   calories: number;
-  protein: number; // grams
-  carbs: number; // grams
-  fat: number; // grams
-  fiber: number; // grams
-  sugar: number; // grams
-  sodium: number; // mg
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  sodium: number;
   servingSize: string;
 }
 
@@ -53,7 +53,7 @@ export interface FoodSearchResult {
   brand: string | null;
   nutrition: NutritionInfo;
   source: 'usda' | 'openfoodfacts' | 'ai';
-  confidence: number; // 0-1
+  confidence: number;
 }
 
 export interface BarcodeLookupResult {
@@ -61,7 +61,6 @@ export interface BarcodeLookupResult {
   product: FoodSearchResult | null;
 }
 
-// USDA nutrient number constants
 const NUTRIENT_IDS = {
   ENERGY_KCAL: '208',
   PROTEIN: '203',
@@ -74,9 +73,6 @@ const NUTRIENT_IDS = {
 
 // ---------- USDA FoodData Central ----------
 
-/**
- * Search for foods in the USDA FoodData Central database.
- */
 export async function searchUSDA(
   query: string,
   pageSize: number = 10,
@@ -98,42 +94,34 @@ export async function searchUSDA(
     });
 
     if (!response.ok) {
-      throw new Error(`USDA API error: ${response.status} ${response.statusText}`);
+      return [];
     }
 
     const data: USDASearchResponse = await response.json();
     return data.foods.map(mapUSDAFoodToResult);
-  } catch (error) {
-    console.error('[FoodDB] USDA search failed:', error);
+  } catch {
     return [];
   }
 }
 
-/**
- * Get detailed food info by USDA FDC ID.
- */
 export async function getUSDAFoodById(fdcId: number): Promise<FoodSearchResult | null> {
   try {
     const url = `${USDA_BASE_URL}/food/${fdcId}?api_key=${USDA_API_KEY}`;
     const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`USDA API error: ${response.status}`);
+      return null;
     }
 
     const data: USDAFoodItem = await response.json();
     return mapUSDAFoodToResult(data);
-  } catch (error) {
-    console.error('[FoodDB] USDA lookup failed:', error);
+  } catch {
     return null;
   }
 }
 
 // ---------- Open Food Facts (Barcode) ----------
 
-/**
- * Look up a product by barcode (UPC/EAN) using Open Food Facts.
- */
 export async function lookupBarcode(barcode: string): Promise<BarcodeLookupResult> {
   try {
     const url = `${OPEN_FOOD_FACTS_BASE_URL}/product/${barcode}?fields=product_name,brands,nutriments,serving_size,serving_quantity`;
@@ -167,7 +155,7 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeLookupResul
         fat: nutriments.fat_100g ?? nutriments.fat ?? 0,
         fiber: nutriments.fiber_100g ?? nutriments.fiber ?? 0,
         sugar: nutriments.sugars_100g ?? nutriments.sugars ?? 0,
-        sodium: nutriments.sodium_100g ? nutriments.sodium_100g * 1000 : 0, // convert g to mg
+        sodium: nutriments.sodium_100g ? nutriments.sodium_100g * 1000 : 0,
         servingSize: product.serving_size ?? '100g',
       },
       source: 'openfoodfacts',
@@ -175,27 +163,18 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeLookupResul
     };
 
     return { found: true, product: result };
-  } catch (error) {
-    console.error('[FoodDB] Barcode lookup failed:', error);
+  } catch {
     return { found: false, product: null };
   }
 }
 
 // ---------- Combined Search ----------
 
-/**
- * Combined food search: tries USDA first, returns results.
- * Can be combined with AI recognition results for better accuracy.
- */
 export async function searchFood(query: string): Promise<FoodSearchResult[]> {
   const usdaResults = await searchUSDA(query, 10);
   return usdaResults;
 }
 
-/**
- * Merge AI recognition results with USDA data for higher accuracy.
- * Uses the AI-recognized food name to search USDA and cross-reference nutrients.
- */
 export async function mergeWithAIResults(
   aiName: string,
   aiNutrition: NutritionInfo
@@ -205,7 +184,6 @@ export async function mergeWithAIResults(
 
     if (usdaResults.length > 0) {
       const bestMatch = usdaResults[0];
-      // Average the AI and USDA values for better accuracy
       return {
         id: bestMatch.id,
         name: aiName,
@@ -225,7 +203,6 @@ export async function mergeWithAIResults(
       };
     }
 
-    // Fall back to AI-only result
     return {
       id: `ai-${Date.now()}`,
       name: aiName,
@@ -234,8 +211,7 @@ export async function mergeWithAIResults(
       source: 'ai',
       confidence: 0.7,
     };
-  } catch (error) {
-    console.error('[FoodDB] Merge with AI results failed:', error);
+  } catch {
     return {
       id: `ai-${Date.now()}`,
       name: aiName,

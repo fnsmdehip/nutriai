@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,147 +7,300 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useNavigation, NavigationProp, ParamListBase } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 
 import { Theme } from '../utils/theme';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { addConsumedItem } from '../store/nutritionSlice';
 import { incrementDailyScans } from '../store/subscriptionSlice';
-import { mergeWithAIResults } from '../services/foodDatabase';
-import { shouldShowInterstitial, showInterstitialAd } from '../services/ads';
-import { v4 as uuidv4 } from 'uuid';
+import type { Food } from '../store/nutritionSlice';
 
-const CameraScreen = () => {
+const CameraScreen = (): React.JSX.Element => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<Food | null>(null);
+  const cameraRef = useRef<CameraView>(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const dispatch = useAppDispatch();
 
   const isPremium = useAppSelector((state) => state.subscription.isPremium);
-  const foodScansCompleted = useAppSelector((state) => state.subscription.foodScansCompleted);
+  const dailyScansUsed = useAppSelector((state) => state.subscription.dailyScansUsed);
+  const dailyScanLimit = useAppSelector((state) => state.subscription.dailyScanLimit);
 
-  // For demo purposes, we'll simulate taking a picture
-  const takePicture = () => {
-    setCapturedImage(
-      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&q=80&w=1000'
-    );
-  };
+  const scansRemaining = isPremium ? null : Math.max(0, dailyScanLimit - dailyScansUsed);
 
-  const analyzePicture = useCallback(async () => {
+  const takePicture = useCallback(async (): Promise<void> => {
+    if (!cameraRef.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+      });
+      if (photo?.uri) {
+        setCapturedImage(photo.uri);
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to capture photo. Please try again.');
+    }
+  }, []);
+
+  const pickFromGallery = useCallback(async (): Promise<void> => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setCapturedImage(result.assets[0].uri);
+    }
+  }, []);
+
+  const analyzePicture = useCallback(async (): Promise<void> => {
+    if (!capturedImage) return;
+
+    // Check scan limit for free users
+    if (!isPremium && scansRemaining !== null && scansRemaining <= 0) {
+      Alert.alert(
+        'Daily Limit Reached',
+        'You have used all free scans for today. Upgrade to Premium for unlimited scans.',
+        [
+          { text: 'Upgrade', onPress: () => navigation.navigate('Paywall') },
+          { text: 'OK', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
     try {
       setIsAnalyzing(true);
-
-      // Track the scan
       dispatch(incrementDailyScans());
 
-      // Simulate AI recognition (in production, this calls the Gemini API)
-      // The AI would return the food name and estimated nutrition
-      const aiName = 'Grilled Chicken Salad';
-      const aiNutrition = {
+      // Simulate AI analysis delay (in production, call Gemini/GPT Vision API)
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 2000);
+      });
+
+      const foodResult: Food = {
+        id: `food-${Date.now()}`,
+        name: 'Grilled Chicken Salad',
         calories: 350,
         protein: 35,
         carbs: 12,
         fat: 18,
-        fiber: 4,
-        sugar: 3,
-        sodium: 480,
-        servingSize: '1 bowl',
+        imageUrl: capturedImage,
+        timestamp: Date.now(),
       };
 
-      // Cross-reference with USDA database for accuracy
-      const enrichedResult = await mergeWithAIResults(aiName, aiNutrition);
-
-      // Add to consumed items
-      dispatch(
-        addConsumedItem({
-          id: uuidv4(),
-          name: enrichedResult.name,
-          calories: enrichedResult.nutrition.calories,
-          protein: enrichedResult.nutrition.protein,
-          carbs: enrichedResult.nutrition.carbs,
-          fat: enrichedResult.nutrition.fat,
-          imageUrl: capturedImage ?? undefined,
-          timestamp: Date.now(),
-        })
-      );
-
-      // Show interstitial ad for free users after every 5th scan
-      const newScanCount = foodScansCompleted + 1;
-      if (!isPremium && shouldShowInterstitial(newScanCount)) {
-        showInterstitialAd();
-      }
-
-      // Navigate back to home
-      navigation.navigate('Home');
-    } catch (error) {
-      console.error('[Camera] Analysis failed:', error);
-      Alert.alert('Analysis Failed', 'Could not analyze the food. Please try again.');
+      setAnalysisResult(foodResult);
+    } catch {
+      Alert.alert('Analysis Failed', 'Could not analyze the food image. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [dispatch, capturedImage, isPremium, foodScansCompleted, navigation]);
+  }, [capturedImage, dispatch, isPremium, scansRemaining, navigation]);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Food Camera</Text>
-        <View style={styles.placeholder} />
-      </View>
+  const confirmAndSave = useCallback((): void => {
+    if (!analysisResult) return;
+    dispatch(addConsumedItem(analysisResult));
+    navigation.goBack();
+  }, [analysisResult, dispatch, navigation]);
 
-      {!capturedImage ? (
-        <View style={styles.cameraContainer}>
-          <View style={styles.mockCamera}>
-            <View style={styles.focusGuide} />
-            <Text style={styles.guideText}>Position your food in the center</Text>
+  const resetCamera = useCallback((): void => {
+    setCapturedImage(null);
+    setAnalysisResult(null);
+    setIsAnalyzing(false);
+  }, []);
 
-            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-              <View style={styles.captureInner} />
+  // Permission not yet determined
+  if (!permission) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centeredContent}>
+          <ActivityIndicator size="large" color={Theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Permission denied
+  if (!permission.granted) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.navBar}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={Theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.navTitle}>Food Scanner</Text>
+          <View style={styles.navPlaceholder} />
+        </View>
+        <View style={styles.centeredContent}>
+          <View style={styles.permissionIconContainer}>
+            <Ionicons name="camera-outline" size={48} color={Theme.colors.inactive} />
+          </View>
+          <Text style={styles.permissionTitle}>Camera Access Required</Text>
+          <Text style={styles.permissionDescription}>
+            NutriAI needs camera access to scan and analyze your food for nutrition information.
+          </Text>
+          {permission.canAskAgain ? (
+            <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+              <Text style={styles.permissionButtonText}>Grant Camera Access</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.permissionButton}
+              onPress={() => Linking.openSettings()}
+            >
+              <Text style={styles.permissionButtonText}>Open Settings</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.galleryFallback} onPress={pickFromGallery}>
+            <Ionicons name="images-outline" size={20} color={Theme.colors.primary} />
+            <Text style={styles.galleryFallbackText}>Choose from Gallery Instead</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Analysis result view
+  if (analysisResult) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.navBar}>
+          <TouchableOpacity style={styles.backButton} onPress={resetCamera}>
+            <Ionicons name="arrow-back" size={24} color={Theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.navTitle}>Analysis Result</Text>
+          <View style={styles.navPlaceholder} />
+        </View>
+
+        <View style={styles.resultContainer}>
+          {capturedImage && (
+            <Image source={{ uri: capturedImage }} style={styles.resultImage} resizeMode="cover" />
+          )}
+
+          <View style={styles.resultCard}>
+            <Text style={styles.resultFoodName}>{analysisResult.name}</Text>
+
+            <View style={styles.resultMacroGrid}>
+              <View style={styles.resultMacroItem}>
+                <Text style={styles.resultMacroValue}>{analysisResult.calories}</Text>
+                <Text style={styles.resultMacroLabel}>Calories</Text>
+              </View>
+              <View style={[styles.resultMacroDivider]} />
+              <View style={styles.resultMacroItem}>
+                <Text style={[styles.resultMacroValue, { color: Theme.colors.protein }]}>
+                  {analysisResult.protein}g
+                </Text>
+                <Text style={styles.resultMacroLabel}>Protein</Text>
+              </View>
+              <View style={[styles.resultMacroDivider]} />
+              <View style={styles.resultMacroItem}>
+                <Text style={[styles.resultMacroValue, { color: Theme.colors.carbs }]}>
+                  {analysisResult.carbs}g
+                </Text>
+                <Text style={styles.resultMacroLabel}>Carbs</Text>
+              </View>
+              <View style={[styles.resultMacroDivider]} />
+              <View style={styles.resultMacroItem}>
+                <Text style={[styles.resultMacroValue, { color: Theme.colors.fat }]}>
+                  {analysisResult.fat}g
+                </Text>
+                <Text style={styles.resultMacroLabel}>Fat</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.resultActions}>
+            <TouchableOpacity style={styles.retakeButton} onPress={resetCamera}>
+              <Ionicons name="refresh" size={20} color={Theme.colors.text} />
+              <Text style={styles.retakeButtonText}>Retake</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.confirmButton} onPress={confirmAndSave}>
+              <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+              <Text style={styles.confirmButtonText}>Log Food</Text>
             </TouchableOpacity>
           </View>
         </View>
-      ) : (
-        <View style={styles.previewContainer}>
+      </SafeAreaView>
+    );
+  }
+
+  // Image preview / analyzing state
+  if (capturedImage) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.previewWrapper}>
           <Image source={{ uri: capturedImage }} style={styles.previewImage} resizeMode="cover" />
 
           {isAnalyzing && (
             <View style={styles.analyzingOverlay}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.analyzingText}>Analyzing food...</Text>
-              <Text style={styles.analyzingSubtext}>
-                Cross-referencing with USDA database
+              <ActivityIndicator size="large" color={Theme.colors.primary} />
+              <Text style={styles.analyzingTitle}>Analyzing your food...</Text>
+              <Text style={styles.analyzingSubtitle}>
+                Identifying ingredients and estimating nutrition
               </Text>
             </View>
           )}
 
-          <View style={styles.previewControls}>
-            <TouchableOpacity
-              style={styles.controlButton}
-              onPress={() => setCapturedImage(null)}
-              disabled={isAnalyzing}
-            >
-              <Text style={styles.controlButtonText}>Retake</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.controlButton, styles.primaryButton]}
-              onPress={analyzePicture}
-              disabled={isAnalyzing}
-            >
-              {isAnalyzing ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Analyze</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          {!isAnalyzing && (
+            <View style={styles.previewControls}>
+              <TouchableOpacity style={styles.previewRetake} onPress={resetCamera}>
+                <Ionicons name="close" size={22} color={Theme.colors.text} />
+                <Text style={styles.previewRetakeText}>Retake</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.previewAnalyze} onPress={analyzePicture}>
+                <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+                <Text style={styles.previewAnalyzeText}>Analyze Food</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      )}
+      </SafeAreaView>
+    );
+  }
+
+  // Camera live view
+  return (
+    <SafeAreaView style={styles.cameraContainer}>
+      <CameraView ref={cameraRef} style={styles.camera} facing="back">
+        {/* Top bar */}
+        <View style={styles.cameraTopBar}>
+          <TouchableOpacity style={styles.cameraNavButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="close" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          {!isPremium && scansRemaining !== null && (
+            <View style={styles.cameraScanBadge}>
+              <Text style={styles.cameraScanText}>{scansRemaining} scans left</Text>
+            </View>
+          )}
+          <TouchableOpacity style={styles.cameraNavButton} onPress={pickFromGallery}>
+            <Ionicons name="images-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Focus guide */}
+        <View style={styles.focusArea}>
+          <View style={styles.focusCorner} />
+          <Text style={styles.focusText}>Center your food in the frame</Text>
+        </View>
+
+        {/* Capture button */}
+        <View style={styles.captureArea}>
+          <TouchableOpacity style={styles.captureButton} onPress={takePicture} activeOpacity={0.7}>
+            <View style={styles.captureInner} />
+          </TouchableOpacity>
+        </View>
+      </CameraView>
     </SafeAreaView>
   );
 };
@@ -155,131 +308,314 @@ const CameraScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Theme.colors.background,
+  },
+  cameraContainer: {
+    flex: 1,
     backgroundColor: '#000',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  centeredContent: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 15,
+    paddingHorizontal: 40,
+  },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: Theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  navTitle: {
+    fontSize: Theme.typography.fontSize.lg,
+    fontWeight: '700',
+    color: Theme.colors.text,
   },
-  placeholder: {
+  navPlaceholder: {
     width: 40,
   },
-  cameraContainer: {
-    flex: 1,
-    justifyContent: 'center',
+
+  // Permission denied state
+  permissionIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: Theme.colors.surface,
     alignItems: 'center',
-  },
-  mockCamera: {
-    flex: 1,
-    width: '100%',
     justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
+    marginBottom: 24,
   },
-  focusGuide: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
-    borderRadius: 20,
+  permissionTitle: {
+    fontSize: Theme.typography.fontSize.xl,
+    fontWeight: '700',
+    color: Theme.colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  permissionDescription: {
+    fontSize: Theme.typography.fontSize.md,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  permissionButton: {
+    backgroundColor: Theme.colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: Theme.border.radius.large,
     marginBottom: 20,
+    ...Theme.shadow.medium,
   },
-  guideText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 40,
+  permissionButtonText: {
+    color: '#FFFFFF',
+    fontSize: Theme.typography.fontSize.md,
+    fontWeight: '700',
+  },
+  galleryFallback: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  galleryFallbackText: {
+    color: Theme.colors.primary,
+    fontSize: Theme.typography.fontSize.sm,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+
+  // Camera live view
+  camera: {
+    flex: 1,
+  },
+  cameraTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+  },
+  cameraNavButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraScanBadge: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  cameraScanText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  focusArea: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  focusCorner: {
+    width: 240,
+    height: 240,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 24,
+    marginBottom: 16,
+  },
+  focusText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 15,
+    fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  captureArea: {
+    alignItems: 'center',
+    paddingBottom: 50,
   },
   captureButton: {
-    position: 'absolute',
-    bottom: 40,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#fff',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
   captureInner: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    borderWidth: 2,
-    borderColor: '#000',
+    backgroundColor: '#FFFFFF',
   },
-  previewContainer: {
+
+  // Preview state
+  previewWrapper: {
     flex: 1,
   },
   previewImage: {
     flex: 1,
     width: '100%',
-    height: '100%',
   },
   analyzingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(11,26,46,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  analyzingText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 16,
+  analyzingTitle: {
+    color: '#FFFFFF',
+    fontSize: Theme.typography.fontSize.lg,
+    fontWeight: '700',
+    marginTop: 20,
   },
-  analyzingSubtext: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
+  analyzingSubtitle: {
+    color: Theme.colors.textSecondary,
+    fontSize: Theme.typography.fontSize.sm,
     marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
   previewControls: {
     position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
+    bottom: 50,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+    gap: 12,
   },
-  controlButton: {
+  previewRetake: {
     flex: 1,
-    paddingVertical: 14,
-    marginHorizontal: 8,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: Theme.border.radius.medium,
+    backgroundColor: Theme.colors.surface,
+    gap: 8,
+  },
+  previewRetakeText: {
+    color: Theme.colors.text,
+    fontSize: Theme.typography.fontSize.md,
+    fontWeight: '600',
+  },
+  previewAnalyze: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: Theme.border.radius.medium,
+    backgroundColor: Theme.colors.primary,
+    gap: 8,
+  },
+  previewAnalyzeText: {
+    color: '#FFFFFF',
+    fontSize: Theme.typography.fontSize.md,
+    fontWeight: '700',
+  },
+
+  // Result state
+  resultContainer: {
+    flex: 1,
+  },
+  resultImage: {
+    width: '100%',
+    height: 260,
+  },
+  resultCard: {
+    backgroundColor: Theme.colors.surface,
+    marginHorizontal: 20,
+    marginTop: -30,
+    borderRadius: Theme.border.radius.medium,
+    padding: 24,
+    ...Theme.shadow.medium,
+  },
+  resultFoodName: {
+    fontSize: Theme.typography.fontSize.xxl,
+    fontWeight: '700',
+    color: Theme.colors.text,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  resultMacroGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
   },
-  controlButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  resultMacroItem: {
+    alignItems: 'center',
+    flex: 1,
   },
-  primaryButton: {
-    backgroundColor: '#fff',
+  resultMacroDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: Theme.colors.border,
   },
-  primaryButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
+  resultMacroValue: {
+    fontSize: Theme.typography.fontSize.xl,
+    fontWeight: '700',
+    color: Theme.colors.text,
+  },
+  resultMacroLabel: {
+    fontSize: 12,
+    color: Theme.colors.textSecondary,
+    marginTop: 4,
+  },
+  resultActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    gap: 12,
+  },
+  retakeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: Theme.border.radius.medium,
+    backgroundColor: Theme.colors.surface,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
+    gap: 8,
+  },
+  retakeButtonText: {
+    color: Theme.colors.text,
+    fontSize: Theme.typography.fontSize.md,
+    fontWeight: '600',
+  },
+  confirmButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: Theme.border.radius.medium,
+    backgroundColor: Theme.colors.primary,
+    gap: 8,
+    ...Theme.shadow.medium,
+  },
+  confirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: Theme.typography.fontSize.md,
+    fontWeight: '700',
   },
 });
 

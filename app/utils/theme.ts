@@ -1,39 +1,44 @@
-// Theme configuration with Studio Ghibli-inspired colors
+/**
+ * NutriAI Design System
+ * Dark mode theme based on PRINTMAXX V2 top-grossing health/wellness apps.
+ */
 
 export const Theme = {
   colors: {
-    // Studio Ghibli inspired color palette
-    primary: '#5D9C59', // Warm earthy green (Totoro moss color)
-    secondary: '#7895B2', // Muted blue (Howl's castle sky)
-    background: '#F8F5F0', // Warm cream (Parchment texture)
-    card: '#FFFBF0', // Soft white with slight warmth
-    text: '#393939', // Deep charcoal (Spirited Away)
-    textSecondary: '#6E6E6E', // Muted dusty mauve
-    border: '#E5E0D5', // Light sandy beige
-    error: '#D67B56', // Earthy terracotta (Spirited Away)
-    warning: '#F7D060', // Warm golden yellow (Castle in the Sky)
-    success: '#7C9A6F', // Forest green
+    // Core palette
+    primary: '#2ED573',       // Green accent (good / positive)
+    secondary: '#7895B2',     // Muted blue
+    background: '#0B1A2E',    // Deep navy background
+    surface: '#1A2B45',       // Card / elevated surface
+    card: '#1A2B45',          // Alias for surface
+    text: '#FFFFFF',          // Primary text
+    textSecondary: '#8898AA', // Secondary / muted text
+    border: '#253A54',        // Subtle divider
 
-    // Nutrition colors with Ghibli warmth
-    protein: '#D67B56', // Earthy terracotta
-    carbs: '#7C9A6F', // Forest green
-    fat: '#8AADC1', // Muted blue
+    // Status
+    error: '#FF6B6B',         // Coral for bad / errors
+    warning: '#FFD93D',       // Warm gold
+    success: '#2ED573',       // Same as primary green
 
-    // Status colors
-    premium: '#F9E897', // Soft gold for premium features (Laputa golden city)
-    inactive: '#ACA8A6', // Ghibli-inspired slate gray
-    disabled: '#D8D9CF', // Soft grayish beige
-    cardBackground: '#F0EBE2', // Light parchment for card backgrounds
+    // Nutrition macro colors
+    protein: '#FF6B6B',       // Coral
+    carbs: '#2ED573',         // Green
+    fat: '#5B8DEF',           // Blue
 
-    // Additional Ghibli-inspired colors
-    accent: '#D98C5F', // Warm amber (Spirited Away)
-    highlight: '#F5E8C7', // Soft warm highlight color
-    shadow: '#534340', // Rich soil brown for shadows
-    primaryLight: '#D5EBC8', // Light moss green for backgrounds and accents
-    watercolor: '#D6E8F7', // Soft sky blue for water-inspired elements
+    // Subscription / premium
+    premium: '#FFD700',       // Gold
+    inactive: '#4A5568',      // Dark gray
+    disabled: '#2D3748',      // Darker gray
+
+    // Surfaces and accents
+    cardBackground: '#142237', // Slightly different surface for nesting
+    accent: '#FF6B6B',        // Coral accent
+    highlight: '#1E3A5F',     // Highlighted card surface
+    shadow: '#000000',        // Shadow color
+    primaryLight: '#1A3D2A',  // Muted green tint for backgrounds
+    watercolor: '#152A42',    // Subtle blue tint surface
   },
 
-  // Typography
   typography: {
     fontFamily: {
       regular: 'System',
@@ -51,17 +56,16 @@ export const Theme = {
     },
     letterSpacing: {
       tight: -0.2,
-      normal: 0.4, // Increased for Ghibli-inspired spacing
-      wide: 1.8, // Increased for more airy feel
+      normal: 0.3,
+      wide: 1.2,
     },
     lineHeight: {
       tight: 1.3,
-      normal: 1.6,
-      loose: 2.1, // Slightly increased for more space
+      normal: 1.5,
+      loose: 1.8,
     },
   },
 
-  // Spacing
   spacing: {
     xs: 4,
     sm: 8,
@@ -71,7 +75,6 @@ export const Theme = {
     xxl: 48,
   },
 
-  // Borders
   border: {
     width: {
       thin: 1,
@@ -79,35 +82,34 @@ export const Theme = {
       thick: 3,
     },
     radius: {
-      small: 8, // Increased for softer edges
-      medium: 14, // Increased for softer edges
-      large: 20, // Match PRD specification (20px)
+      small: 8,
+      medium: 12,
+      large: 20,
       round: 999,
     },
   },
 
-  // Shadows with Ghibli-style softness
   shadow: {
     small: {
-      shadowColor: '#534340', // Warmer undertones
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.06, // Softer shadow
-      shadowRadius: 3, // More diffuse
-      elevation: 1,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 2,
     },
     medium: {
-      shadowColor: '#534340', // Warmer undertones
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.09, // Softer shadow
-      shadowRadius: 4.5, // More diffuse
-      elevation: 3,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
     },
     large: {
-      shadowColor: '#534340', // Warmer undertones
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.12, // Softer shadow
-      shadowRadius: 6.5, // More diffuse
-      elevation: 5,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.35,
+      shadowRadius: 16,
+      elevation: 8,
     },
     none: {
       shadowOpacity: 0,
@@ -115,26 +117,18 @@ export const Theme = {
     },
   },
 
-  // Animation timing - slightly slower for Ghibli's softer feeling
   animation: {
     timing: {
-      quick: 220, // Slightly slower for gentle feel
-      normal: 350,
+      quick: 200,
+      normal: 300,
       slow: 500,
-    },
-    easing: {
-      gentle: 'cubic-bezier(0.4, 0.0, 0.2, 1)', // Soft, natural easing
-      bounce: 'cubic-bezier(0.34, 1.56, 0.64, 1)', // Slight bounce like Studio Ghibli character movements
-      emphasis: 'cubic-bezier(0.1, 0.9, 0.2, 1)', // Emphasized movement
     },
   },
 
-  // Helper functions
   opacity: {
     disabled: 0.4,
     hover: 0.85,
     active: 0.7,
-    overlay: 0.08, // For subtle background textures
-    watercolor: 0.06, // For very subtle watercolor effects
+    overlay: 0.6,
   },
-}; 
+};
