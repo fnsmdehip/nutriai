@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
@@ -21,6 +22,7 @@ const HomeScreen = (): React.JSX.Element => {
   const dailyGoal = useAppSelector(state => state.nutrition.dailyGoal);
   const consumedItems = useAppSelector(state => state.nutrition.consumedItems);
   const activeDate = useAppSelector(state => state.nutrition.activeDate);
+  const userProfile = useAppSelector(state => state.user.userProfile);
 
   const todayItems = consumedItems[activeDate] ?? [];
 
@@ -76,195 +78,206 @@ const HomeScreen = (): React.JSX.Element => {
   const strokeDashoffset = ringCircumference * (1 - calorieProgress);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Good {getTimeOfDay()}</Text>
-          <Text style={styles.dateText}>{getFormattedDate()}</Text>
-        </View>
-        {!isPremium && scansRemaining !== null && (
-          <TouchableOpacity
-            style={styles.scanBadge}
-            onPress={() => {
-              haptics.light();
-              navigation.navigate('Paywall');
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="camera-outline" size={13} color={Theme.colors.textSecondary} />
-            <Text style={styles.scanBadgeText}>{scansRemaining} scans left</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Theme.colors.primary}
-            colors={[Theme.colors.primary]}
-          />
-        }
-      >
-        <View style={styles.calorieCard}>
-          <View style={styles.calorieRingContainer}>
-            <View
-              style={{
-                width: ringSize,
-                height: ringSize,
-                alignItems: 'center',
-                justifyContent: 'center',
+    <View style={styles.outerContainer}>
+      <LinearGradient
+        colors={['#0F2240', '#0B1A2E', '#0B1A2E']}
+        style={styles.gradientBg}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.35 }}
+      />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Good {getTimeOfDay()}</Text>
+            <Text style={styles.dateText}>{getFormattedDate()}</Text>
+          </View>
+          {!isPremium && scansRemaining !== null && (
+            <TouchableOpacity
+              style={styles.scanBadge}
+              onPress={() => {
+                haptics.light();
+                navigation.navigate('Paywall');
               }}
+              activeOpacity={0.8}
             >
-              <Svg width={ringSize} height={ringSize} style={{ position: 'absolute' }}>
-                <Circle
-                  cx={ringSize / 2}
-                  cy={ringSize / 2}
-                  r={ringRadius}
-                  stroke={Theme.colors.border}
-                  strokeWidth={ringStrokeWidth}
-                  fill="none"
-                />
-                <Circle
-                  cx={ringSize / 2}
-                  cy={ringSize / 2}
-                  r={ringRadius}
-                  stroke={progressColor}
-                  strokeWidth={ringStrokeWidth}
-                  fill="none"
-                  strokeDasharray={`${ringCircumference}`}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin={`${ringSize / 2}, ${ringSize / 2}`}
-                />
-              </Svg>
-              <View style={styles.calorieRingInner}>
-                <Text style={styles.calorieNumber}>{remaining.calories}</Text>
-                <Text style={styles.calorieUnit}>cal left</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.calorieDetails}>
-            <View style={styles.calorieDetailRow}>
-              <Text style={styles.calorieDetailLabel}>Goal</Text>
-              <Text style={styles.calorieDetailValue}>{dailyGoal.calories.toLocaleString()}</Text>
-            </View>
-            <View style={styles.calorieDetailRow}>
-              <Text style={styles.calorieDetailLabel}>Consumed</Text>
-              <Text style={styles.calorieDetailValue}>{totals.calories.toLocaleString()}</Text>
-            </View>
-            <View style={styles.calorieDetailRow}>
-              <Text style={styles.calorieDetailLabel}>Remaining</Text>
-              <Text style={[styles.calorieDetailValue, { color: Theme.colors.primary }]}>
-                {remaining.calories.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.macroCard}>
-          <Text style={styles.sectionTitle}>Macros</Text>
-          <View style={styles.macroGrid}>
-            {(
-              [
-                {
-                  label: 'Protein',
-                  consumed: totals.protein,
-                  goal: dailyGoal.protein,
-                  color: Theme.colors.protein,
-                  unit: 'g',
-                },
-                {
-                  label: 'Carbs',
-                  consumed: totals.carbs,
-                  goal: dailyGoal.carbs,
-                  color: Theme.colors.carbs,
-                  unit: 'g',
-                },
-                {
-                  label: 'Fat',
-                  consumed: totals.fat,
-                  goal: dailyGoal.fat,
-                  color: Theme.colors.fat,
-                  unit: 'g',
-                },
-              ] as const
-            ).map(macro => (
-              <View key={macro.label} style={styles.macroItem}>
-                <View style={styles.macroHeader}>
-                  <Text style={styles.macroLabel}>{macro.label}</Text>
-                  <Text style={styles.macroValues}>
-                    {Math.round(macro.consumed)}/{macro.goal}
-                    {macro.unit}
-                  </Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      {
-                        width: `${getMacroProgress(macro.consumed, macro.goal) * 100}%`,
-                        backgroundColor: macro.color,
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Recently Logged</Text>
-          {todayItems.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <EmptyState
-                icon="restaurant-outline"
-                title="No food logged yet"
-                subtitle="Tap the camera button below to scan your first meal and start tracking your nutrition"
-                actionLabel="Scan Food"
-                onAction={openCamera}
-              />
-            </View>
-          ) : (
-            todayItems
-              .slice()
-              .reverse()
-              .map(item => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.foodCard}
-                  activeOpacity={0.7}
-                  onPress={() => haptics.light()}
-                >
-                  <View style={styles.foodIcon}>
-                    <Ionicons name="restaurant" size={18} color={Theme.colors.primary} />
-                  </View>
-                  <View style={styles.foodInfo}>
-                    <Text style={styles.foodName}>{item.name}</Text>
-                    <Text style={styles.foodMeta}>
-                      {item.calories} cal {'\u00B7'} P: {item.protein}g {'\u00B7'} C: {item.carbs}g{' '}
-                      {'\u00B7'} F: {item.fat}g
-                    </Text>
-                  </View>
-                  <Text style={styles.foodTime}>{formatTime(item.timestamp)}</Text>
-                </TouchableOpacity>
-              ))
+              <Ionicons name="camera-outline" size={13} color={Theme.colors.textSecondary} />
+              <Text style={styles.scanBadgeText}>{scansRemaining} scans left</Text>
+            </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Theme.colors.primary}
+              colors={[Theme.colors.primary]}
+            />
+          }
+        >
+          <View style={styles.calorieCard}>
+            <View style={styles.calorieRingContainer}>
+              <View
+                style={{
+                  width: ringSize,
+                  height: ringSize,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Svg width={ringSize} height={ringSize} style={{ position: 'absolute' }}>
+                  <Circle
+                    cx={ringSize / 2}
+                    cy={ringSize / 2}
+                    r={ringRadius}
+                    stroke="rgba(255,255,255,0.06)"
+                    strokeWidth={ringStrokeWidth}
+                    fill="none"
+                  />
+                  <Circle
+                    cx={ringSize / 2}
+                    cy={ringSize / 2}
+                    r={ringRadius}
+                    stroke={progressColor}
+                    strokeWidth={ringStrokeWidth}
+                    fill="none"
+                    strokeDasharray={`${ringCircumference}`}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin={`${ringSize / 2}, ${ringSize / 2}`}
+                  />
+                </Svg>
+                <View style={styles.calorieRingInner}>
+                  <Text style={styles.calorieNumber}>{remaining.calories}</Text>
+                  <Text style={styles.calorieUnit}>cal left</Text>
+                </View>
+              </View>
+            </View>
 
-      <TouchableOpacity style={styles.fab} onPress={openCamera} activeOpacity={0.85}>
-        <Ionicons name="camera" size={28} color="#FFFFFF" />
-      </TouchableOpacity>
-    </SafeAreaView>
+            <View style={styles.calorieDetails}>
+              <View style={styles.calorieDetailRow}>
+                <Text style={styles.calorieDetailLabel}>Goal</Text>
+                <Text style={styles.calorieDetailValue}>{dailyGoal.calories.toLocaleString()}</Text>
+              </View>
+              <View style={styles.calorieDetailRow}>
+                <Text style={styles.calorieDetailLabel}>Consumed</Text>
+                <Text style={styles.calorieDetailValue}>{totals.calories.toLocaleString()}</Text>
+              </View>
+              <View style={styles.calorieDetailRow}>
+                <Text style={styles.calorieDetailLabel}>Remaining</Text>
+                <Text style={[styles.calorieDetailValue, { color: Theme.colors.primary }]}>
+                  {remaining.calories.toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.macroCard}>
+            <Text style={styles.sectionTitle}>Macros</Text>
+            <View style={styles.macroGrid}>
+              {(
+                [
+                  {
+                    label: 'Protein',
+                    consumed: totals.protein,
+                    goal: dailyGoal.protein,
+                    color: Theme.colors.protein,
+                    unit: 'g',
+                  },
+                  {
+                    label: 'Carbs',
+                    consumed: totals.carbs,
+                    goal: dailyGoal.carbs,
+                    color: Theme.colors.carbs,
+                    unit: 'g',
+                  },
+                  {
+                    label: 'Fat',
+                    consumed: totals.fat,
+                    goal: dailyGoal.fat,
+                    color: Theme.colors.fat,
+                    unit: 'g',
+                  },
+                ] as const
+              ).map(macro => (
+                <View key={macro.label} style={styles.macroItem}>
+                  <View style={styles.macroHeader}>
+                    <View style={styles.macroLabelRow}>
+                      <View style={[styles.macroDot, { backgroundColor: macro.color }]} />
+                      <Text style={styles.macroLabel}>{macro.label}</Text>
+                    </View>
+                    <Text style={styles.macroValues}>
+                      {Math.round(macro.consumed)}/{macro.goal}
+                      {macro.unit}
+                    </Text>
+                  </View>
+                  <View style={styles.progressBarBg}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        {
+                          width: `${getMacroProgress(macro.consumed, macro.goal) * 100}%`,
+                          backgroundColor: macro.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.recentSection}>
+            <Text style={styles.sectionTitle}>Recently Logged</Text>
+            {todayItems.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <EmptyState
+                  icon="restaurant-outline"
+                  title="No food logged yet"
+                  subtitle="Tap the camera button below to scan your first meal and start tracking your nutrition"
+                  actionLabel="Scan Food"
+                  onAction={openCamera}
+                />
+              </View>
+            ) : (
+              todayItems
+                .slice()
+                .reverse()
+                .map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.foodCard}
+                    activeOpacity={0.7}
+                    onPress={() => haptics.light()}
+                  >
+                    <View style={styles.foodIcon}>
+                      <Ionicons name="restaurant" size={18} color={Theme.colors.primary} />
+                    </View>
+                    <View style={styles.foodInfo}>
+                      <Text style={styles.foodName}>{item.name}</Text>
+                      <Text style={styles.foodMeta}>
+                        {item.calories} cal {'\u00B7'} P: {item.protein}g {'\u00B7'} C: {item.carbs}
+                        g {'\u00B7'} F: {item.fat}g
+                      </Text>
+                    </View>
+                    <Text style={styles.foodTime}>{formatTime(item.timestamp)}</Text>
+                  </TouchableOpacity>
+                ))
+            )}
+          </View>
+
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        <TouchableOpacity style={styles.fab} onPress={openCamera} activeOpacity={0.85}>
+          <Ionicons name="camera" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -284,9 +297,19 @@ function getFormattedDate(): string {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
     backgroundColor: Theme.colors.background,
+  },
+  gradientBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 260,
+  },
+  container: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -299,6 +322,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: Theme.colors.text,
+    letterSpacing: -0.3,
   },
   dateText: {
     fontSize: 14,
@@ -314,6 +338,8 @@ const styles = StyleSheet.create({
     borderRadius: Theme.border.radius.round,
     gap: 4,
     minHeight: 34,
+    borderWidth: 1,
+    borderColor: 'rgba(46, 213, 115, 0.12)',
   },
   scanBadgeText: {
     fontSize: 12,
@@ -325,9 +351,9 @@ const styles = StyleSheet.create({
   },
   calorieCard: {
     flexDirection: 'row',
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     marginHorizontal: 20,
-    borderRadius: Theme.border.radius.medium,
+    borderRadius: 20,
     padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
@@ -342,10 +368,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calorieNumber: {
-    fontSize: 60,
+    fontSize: 56,
     fontWeight: '200',
     color: Theme.colors.text,
     letterSpacing: -2,
+    fontVariant: ['tabular-nums'] as any,
   },
   calorieUnit: {
     fontSize: 12,
@@ -372,10 +399,10 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'] as any,
   },
   macroCard: {
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     marginHorizontal: 20,
     marginTop: 16,
-    borderRadius: Theme.border.radius.medium,
+    borderRadius: 20,
     padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
@@ -399,6 +426,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  macroLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  macroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   macroLabel: {
     fontSize: 14,
     color: Theme.colors.textSecondary,
@@ -413,7 +450,7 @@ const styles = StyleSheet.create({
   progressBarBg: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: Theme.colors.border,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     overflow: 'hidden',
   },
   progressBarFill: {
@@ -425,28 +462,27 @@ const styles = StyleSheet.create({
     paddingTop: 28,
   },
   emptyContainer: {
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
   foodCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     minHeight: 64,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    ...Theme.shadow.small,
   },
   foodIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Theme.colors.primaryLight,
+    backgroundColor: 'rgba(46, 213, 115, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,

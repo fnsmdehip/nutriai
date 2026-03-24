@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,103 +10,100 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch } from '../store/hooks';
-import { completeOnboarding, setGoal, setDietType } from '../store/userSlice';
+import {
+  completeOnboarding,
+  setGender,
+  setAge,
+  setHeightCm,
+  setWeightKg,
+  setGoalWeight,
+  setGoal,
+  setActivityLevel,
+  setCalculatedNutrition,
+} from '../store/userSlice';
+import type { Gender, Goal, ActivityLevel } from '../store/userSlice';
 import { setDailyGoal } from '../store/nutritionSlice';
 import { Theme } from '../utils/theme';
 import { haptics } from '../utils/haptics';
+import {
+  calculateFullPlan,
+  feetInchesToCm,
+  lbsToKg,
+  kgToLbs,
+  estimateWeeksToGoal,
+  getProjectedDate,
+} from '../utils/nutrition';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-type DietaryPref = 'regular' | 'keto' | 'vegan' | 'vegetarian' | 'pescatarian' | 'paleo';
-type GoalType = 'lose' | 'maintain' | 'gain';
-
-interface DietOption {
-  key: DietaryPref;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  description: string;
-}
-
-interface GoalOption {
-  key: GoalType;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  calories: number;
-  description: string;
-}
-
-const DIET_OPTIONS: DietOption[] = [
-  {
-    key: 'regular',
-    label: 'No Restrictions',
-    icon: 'restaurant-outline',
-    description: 'I eat everything',
-  },
-  { key: 'keto', label: 'Keto', icon: 'flame-outline', description: 'High fat, low carb' },
-  { key: 'vegan', label: 'Vegan', icon: 'leaf-outline', description: 'Plant-based only' },
-  {
-    key: 'vegetarian',
-    label: 'Vegetarian',
-    icon: 'nutrition-outline',
-    description: 'No meat or fish',
-  },
-  {
-    key: 'pescatarian',
-    label: 'Pescatarian',
-    icon: 'fish-outline',
-    description: 'Vegetarian + fish',
-  },
-  { key: 'paleo', label: 'Paleo', icon: 'fitness-outline', description: 'Whole foods, no grains' },
-];
-
-const GOAL_OPTIONS: GoalOption[] = [
-  {
-    key: 'lose',
-    label: 'Lose Weight',
-    icon: 'trending-down-outline',
-    calories: 1600,
-    description: 'Calorie deficit for steady fat loss',
-  },
-  {
-    key: 'maintain',
-    label: 'Maintain Weight',
-    icon: 'remove-outline',
-    calories: 2000,
-    description: 'Stay at your current weight',
-  },
-  {
-    key: 'gain',
-    label: 'Build Muscle',
-    icon: 'trending-up-outline',
-    calories: 2500,
-    description: 'Calorie surplus for muscle growth',
-  },
-];
-
-const CALORIE_GOALS: Record<
-  GoalType,
-  { calories: number; protein: number; carbs: number; fat: number }
-> = {
-  lose: { calories: 1600, protein: 140, carbs: 130, fat: 55 },
-  maintain: { calories: 2000, protein: 150, carbs: 200, fat: 70 },
-  gain: { calories: 2500, protein: 180, carbs: 280, fat: 85 },
-};
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
 const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element => {
-  const [step, setStep] = useState(0);
-  const [selectedDiet, setSelectedDiet] = useState<DietaryPref | null>(null);
-  const [selectedGoal, setSelectedGoal] = useState<GoalType | null>(null);
   const dispatch = useAppDispatch();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
-  const totalSteps = 5;
+  // Step state
+  const [step, setStep] = useState(0);
+
+  // User data
+  const [selectedGender, setSelectedGender] = useState<Gender | null>(null);
+  const [age, setAgeVal] = useState(28);
+  const [heightFeet, setHeightFeet] = useState(5);
+  const [heightInches, setHeightInches] = useState(10);
+  const [weightLbs, setWeightLbs] = useState(170);
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityLevel | null>(null);
+  const [targetWeightLbs, setTargetWeightLbs] = useState(160);
+
+  // Whether goal needs target weight screen
+  const needsTargetWeight = selectedGoal === 'lose' || selectedGoal === 'gain';
+
+  // Dynamic total steps based on goal
+  const totalSteps = needsTargetWeight ? 9 : 8;
+
+  // Mapping step index to screen identity
+  const getScreenId = (s: number): string => {
+    const screens = ['welcome', 'gender', 'age', 'measurements', 'goal', 'activity'];
+    if (needsTargetWeight) {
+      return [...screens, 'targetWeight', 'plan', 'paywall'][s] ?? 'welcome';
+    }
+    return [...screens, 'plan', 'paywall'][s] ?? 'welcome';
+  };
+
+  const screenId = getScreenId(step);
+
+  // Calculated plan
+  const plan = useMemo(() => {
+    if (!selectedGender || !selectedGoal || !selectedActivity) return null;
+    const heightCm = feetInchesToCm(heightFeet, heightInches);
+    const weightKg = lbsToKg(weightLbs);
+    return calculateFullPlan(
+      selectedGender,
+      age,
+      heightCm,
+      weightKg,
+      selectedGoal,
+      selectedActivity,
+    );
+  }, [selectedGender, age, heightFeet, heightInches, weightLbs, selectedGoal, selectedActivity]);
+
+  const projectedWeeks = useMemo(() => {
+    if (!selectedGoal || selectedGoal === 'maintain') return 0;
+    const currentKg = lbsToKg(weightLbs);
+    const targetKg = lbsToKg(targetWeightLbs);
+    return estimateWeeksToGoal(currentKg, targetKg, selectedGoal);
+  }, [weightLbs, targetWeightLbs, selectedGoal]);
+
+  const projectedDate = useMemo(() => {
+    if (projectedWeeks <= 0) return '';
+    return getProjectedDate(projectedWeeks);
+  }, [projectedWeeks]);
 
   const animateTransition = useCallback(
     (nextStep: number) => {
@@ -141,26 +138,82 @@ const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element =>
     [fadeAnim, slideAnim],
   );
 
+  const canProceed = (): boolean => {
+    switch (screenId) {
+      case 'gender':
+        return selectedGender !== null;
+      case 'goal':
+        return selectedGoal !== null;
+      case 'activity':
+        return selectedActivity !== null;
+      default:
+        return true;
+    }
+  };
+
   const handleNext = useCallback(() => {
     haptics.light();
     if (step < totalSteps - 1) {
       animateTransition(step + 1);
     } else {
-      if (selectedGoal) {
-        const goals = CALORIE_GOALS[selectedGoal];
-        dispatch(setDailyGoal(goals));
+      // Final step — save everything and complete
+      if (plan && selectedGender && selectedGoal && selectedActivity) {
+        const heightCm = feetInchesToCm(heightFeet, heightInches);
+        const weightKg = lbsToKg(weightLbs);
+
+        dispatch(setGender(selectedGender));
+        dispatch(setAge(age));
+        dispatch(setHeightCm(heightCm));
+        dispatch(setWeightKg(weightKg));
         dispatch(setGoal(selectedGoal));
+        dispatch(setActivityLevel(selectedActivity));
+
+        if (needsTargetWeight) {
+          dispatch(setGoalWeight(lbsToKg(targetWeightLbs)));
+        } else {
+          dispatch(setGoalWeight(null));
+        }
+
+        dispatch(
+          setCalculatedNutrition({
+            dailyCalories: plan.dailyCalories,
+            proteinGoal: plan.protein,
+            carbGoal: plan.carbs,
+            fatGoal: plan.fat,
+          }),
+        );
+
+        dispatch(
+          setDailyGoal({
+            calories: plan.dailyCalories,
+            protein: plan.protein,
+            carbs: plan.carbs,
+            fat: plan.fat,
+          }),
+        );
+
+        dispatch(completeOnboarding());
+        haptics.success();
+        onComplete();
       }
-      if (selectedDiet) {
-        const mappedDiet =
-          selectedDiet === 'keto' || selectedDiet === 'paleo' ? 'regular' : selectedDiet;
-        dispatch(setDietType(mappedDiet as 'regular' | 'pescatarian' | 'vegetarian' | 'vegan'));
-      }
-      dispatch(completeOnboarding());
-      haptics.success();
-      onComplete();
     }
-  }, [step, selectedGoal, selectedDiet, dispatch, animateTransition, onComplete]);
+  }, [
+    step,
+    totalSteps,
+    plan,
+    selectedGender,
+    selectedGoal,
+    selectedActivity,
+    heightFeet,
+    heightInches,
+    weightLbs,
+    age,
+    needsTargetWeight,
+    targetWeightLbs,
+    dispatch,
+    animateTransition,
+    onComplete,
+  ]);
 
   const handleBack = useCallback(() => {
     haptics.light();
@@ -169,44 +222,44 @@ const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element =>
     }
   }, [step, animateTransition]);
 
-  const canProceed = (): boolean => {
-    if (step === 1) return selectedDiet !== null;
-    if (step === 2) return selectedGoal !== null;
-    return true;
-  };
+  const progressPercent = step === 0 ? 0 : (step / (totalSteps - 1)) * 100;
 
-  const progressPercent = ((step + 1) / totalSteps) * 100;
+  // ============================================
+  // SCREEN RENDERERS
+  // ============================================
 
   const renderWelcome = (): React.JSX.Element => (
     <ScrollView contentContainerStyle={styles.welcomeContent} showsVerticalScrollIndicator={false}>
       <View style={styles.welcomeHero}>
-        <View style={styles.heroGlowRing}>
-          <View style={styles.heroIconCircle}>
-            <Ionicons name="nutrition" size={52} color={Theme.colors.primary} />
+        <View style={styles.heroGlowOuter}>
+          <View style={styles.heroGlowRing}>
+            <View style={styles.heroIconCircle}>
+              <Ionicons name="leaf" size={48} color={Theme.colors.primary} />
+            </View>
           </View>
         </View>
         <Text style={styles.welcomeTitle}>Track Nutrition{'\n'}With Your Camera</Text>
         <Text style={styles.welcomeSubtitle}>
-          Snap a photo of any meal and get instant calorie and macro breakdowns powered by AI
+          Get a personalized calorie and macro plan based on your body, goals, and lifestyle
         </Text>
       </View>
 
       <View style={styles.featureList}>
         {[
           {
-            icon: 'camera' as const,
-            title: 'Instant AI Recognition',
-            desc: 'Point, snap, and know what you ate',
+            icon: 'body' as const,
+            title: 'Personalized Plan',
+            desc: 'Targets based on your exact profile',
           },
           {
-            icon: 'analytics' as const,
-            title: 'Detailed Macro Tracking',
-            desc: 'Protein, carbs, fat, and calories',
+            icon: 'camera' as const,
+            title: 'AI Food Scanner',
+            desc: 'Snap a photo, get instant macros',
           },
           {
             icon: 'trending-up' as const,
-            title: 'Smart Insights',
-            desc: 'Weekly trends and personalized tips',
+            title: 'Track Progress',
+            desc: 'Watch your body transform',
           },
         ].map(feature => (
           <View key={feature.title} style={styles.featureRow}>
@@ -223,47 +276,181 @@ const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element =>
     </ScrollView>
   );
 
-  const renderDietSelection = (): React.JSX.Element => (
+  const renderGender = (): React.JSX.Element => (
     <ScrollView
       contentContainerStyle={styles.stepScrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.stepTitle}>What's your diet?</Text>
-      <Text style={styles.stepSubtitle}>
-        Select your dietary preferences so we can tailor recommendations
-      </Text>
-      <View style={styles.optionGrid}>
-        {DIET_OPTIONS.map(diet => {
-          const isSelected = selectedDiet === diet.key;
+      <Text style={styles.stepTitle}>What's your biological sex?</Text>
+      <Text style={styles.stepSubtitle}>This affects your metabolic rate calculation</Text>
+      <View style={styles.genderGrid}>
+        {[
+          { key: 'male' as Gender, label: 'Male', icon: 'male' as const },
+          { key: 'female' as Gender, label: 'Female', icon: 'female' as const },
+          { key: 'other' as Gender, label: 'Other', icon: 'person' as const },
+        ].map(opt => {
+          const isSelected = selectedGender === opt.key;
           return (
             <TouchableOpacity
-              key={diet.key}
-              style={[styles.optionCard, isSelected && styles.optionCardSelected]}
+              key={opt.key}
+              style={[styles.genderCard, isSelected && styles.genderCardSelected]}
               onPress={() => {
                 haptics.selection();
-                setSelectedDiet(diet.key);
+                setSelectedGender(opt.key);
               }}
               activeOpacity={0.8}
             >
-              <View style={[styles.optionIconWrap, isSelected && styles.optionIconWrapSelected]}>
+              <View style={[styles.genderIconWrap, isSelected && styles.genderIconWrapSelected]}>
                 <Ionicons
-                  name={diet.icon}
-                  size={24}
+                  name={opt.icon}
+                  size={36}
                   color={isSelected ? Theme.colors.primary : Theme.colors.textSecondary}
                 />
               </View>
-              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                {diet.label}
+              <Text style={[styles.genderLabel, isSelected && styles.genderLabelSelected]}>
+                {opt.label}
               </Text>
-              <Text style={styles.optionDesc}>{diet.description}</Text>
               {isSelected && (
-                <View style={styles.checkBadge}>
-                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                <View style={styles.selectedCheck}>
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 </View>
               )}
             </TouchableOpacity>
           );
         })}
+      </View>
+    </ScrollView>
+  );
+
+  const renderAge = (): React.JSX.Element => (
+    <ScrollView
+      contentContainerStyle={styles.stepScrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.stepTitle}>How old are you?</Text>
+      <Text style={styles.stepSubtitle}>Age is a key factor in your metabolic rate</Text>
+      <View style={styles.stepperContainer}>
+        <TouchableOpacity
+          style={styles.stepperButton}
+          onPress={() => {
+            haptics.light();
+            setAgeVal(Math.max(18, age - 1));
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="remove" size={32} color={Theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.stepperValueWrap}>
+          <Text style={styles.stepperValue}>{age}</Text>
+          <Text style={styles.stepperUnit}>years</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.stepperButton}
+          onPress={() => {
+            haptics.light();
+            setAgeVal(Math.min(80, age + 1));
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={32} color={Theme.colors.text} />
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+
+  const renderMeasurements = (): React.JSX.Element => (
+    <ScrollView
+      contentContainerStyle={styles.stepScrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.stepTitle}>Your measurements</Text>
+      <Text style={styles.stepSubtitle}>Used to calculate your exact calorie needs</Text>
+
+      {/* Height */}
+      <View style={styles.measureSection}>
+        <Text style={styles.measureLabel}>Height</Text>
+        <View style={styles.measureRow}>
+          <View style={styles.measureGroup}>
+            <TouchableOpacity
+              style={styles.measureBtn}
+              onPress={() => {
+                haptics.light();
+                setHeightFeet(Math.max(4, heightFeet - 1));
+              }}
+            >
+              <Ionicons name="remove" size={24} color={Theme.colors.text} />
+            </TouchableOpacity>
+            <View style={styles.measureValueWrap}>
+              <Text style={styles.measureValue}>{heightFeet}</Text>
+              <Text style={styles.measureUnit}>ft</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.measureBtn}
+              onPress={() => {
+                haptics.light();
+                setHeightFeet(Math.min(7, heightFeet + 1));
+              }}
+            >
+              <Ionicons name="add" size={24} color={Theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.measureGroup}>
+            <TouchableOpacity
+              style={styles.measureBtn}
+              onPress={() => {
+                haptics.light();
+                setHeightInches(Math.max(0, heightInches - 1));
+              }}
+            >
+              <Ionicons name="remove" size={24} color={Theme.colors.text} />
+            </TouchableOpacity>
+            <View style={styles.measureValueWrap}>
+              <Text style={styles.measureValue}>{heightInches}</Text>
+              <Text style={styles.measureUnit}>in</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.measureBtn}
+              onPress={() => {
+                haptics.light();
+                setHeightInches(Math.min(11, heightInches + 1));
+              }}
+            >
+              <Ionicons name="add" size={24} color={Theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Weight */}
+      <View style={styles.measureSection}>
+        <Text style={styles.measureLabel}>Weight</Text>
+        <View style={styles.stepperContainer}>
+          <TouchableOpacity
+            style={styles.stepperButton}
+            onPress={() => {
+              haptics.light();
+              setWeightLbs(Math.max(80, weightLbs - 1));
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="remove" size={32} color={Theme.colors.text} />
+          </TouchableOpacity>
+          <View style={styles.stepperValueWrap}>
+            <Text style={styles.stepperValue}>{weightLbs}</Text>
+            <Text style={styles.stepperUnit}>lbs</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.stepperButton}
+            onPress={() => {
+              haptics.light();
+              setWeightLbs(Math.min(400, weightLbs + 1));
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add" size={32} color={Theme.colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -274,44 +461,55 @@ const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element =>
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.stepTitle}>What's your goal?</Text>
-      <Text style={styles.stepSubtitle}>
-        We'll set a daily calorie target based on your selection
-      </Text>
+      <Text style={styles.stepSubtitle}>We'll adjust your calories to match</Text>
       <View style={styles.goalList}>
-        {GOAL_OPTIONS.map(goal => {
-          const isSelected = selectedGoal === goal.key;
+        {[
+          {
+            key: 'lose' as Goal,
+            label: 'Lose Weight',
+            icon: 'trending-down' as const,
+            desc: 'Reduce body fat with a calorie deficit',
+          },
+          {
+            key: 'maintain' as Goal,
+            label: 'Maintain Weight',
+            icon: 'swap-horizontal' as const,
+            desc: 'Stay at your current weight',
+          },
+          {
+            key: 'gain' as Goal,
+            label: 'Build Muscle',
+            icon: 'trending-up' as const,
+            desc: 'Gain lean mass with a calorie surplus',
+          },
+        ].map(g => {
+          const isSelected = selectedGoal === g.key;
           return (
             <TouchableOpacity
-              key={goal.key}
+              key={g.key}
               style={[styles.goalCard, isSelected && styles.goalCardSelected]}
               onPress={() => {
                 haptics.selection();
-                setSelectedGoal(goal.key);
+                setSelectedGoal(g.key);
               }}
               activeOpacity={0.8}
             >
               <View style={[styles.goalIconWrap, isSelected && styles.goalIconWrapSelected]}>
                 <Ionicons
-                  name={goal.icon}
+                  name={g.icon}
                   size={28}
                   color={isSelected ? Theme.colors.primary : Theme.colors.textSecondary}
                 />
               </View>
               <View style={styles.goalTextBlock}>
                 <Text style={[styles.goalLabel, isSelected && styles.goalLabelSelected]}>
-                  {goal.label}
+                  {g.label}
                 </Text>
-                <Text style={styles.goalDesc}>{goal.description}</Text>
-              </View>
-              <View style={styles.goalCalories}>
-                <Text style={[styles.goalCalNum, isSelected && styles.goalCalNumSelected]}>
-                  {goal.calories.toLocaleString()}
-                </Text>
-                <Text style={styles.goalCalUnit}>cal/day</Text>
+                <Text style={styles.goalDesc}>{g.desc}</Text>
               </View>
               {isSelected && (
-                <View style={styles.goalCheckmark}>
-                  <Ionicons name="checkmark-circle" size={24} color={Theme.colors.primary} />
+                <View style={styles.selectedCheck}>
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 </View>
               )}
             </TouchableOpacity>
@@ -321,255 +519,358 @@ const OnboardingScreen = ({ onComplete }: OnboardingProps): React.JSX.Element =>
     </ScrollView>
   );
 
-  const renderCalorieCalculator = (): React.JSX.Element => {
-    const goals = selectedGoal ? CALORIE_GOALS[selectedGoal] : CALORIE_GOALS.maintain;
-    return (
-      <ScrollView
-        contentContainerStyle={styles.stepScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.stepTitle}>Your Daily Targets</Text>
-        <Text style={styles.stepSubtitle}>
-          Based on your goals, here are your personalized nutrition targets
-        </Text>
-
-        <View style={styles.calorieHero}>
-          <View style={styles.calorieRingLarge}>
-            <Text style={styles.calorieHeroNumber}>{goals.calories.toLocaleString()}</Text>
-            <Text style={styles.calorieHeroUnit}>calories per day</Text>
-          </View>
-        </View>
-
-        <View style={styles.macroTargets}>
-          {[
-            { label: 'Protein', value: goals.protein, color: Theme.colors.protein, unit: 'g' },
-            { label: 'Carbs', value: goals.carbs, color: Theme.colors.carbs, unit: 'g' },
-            { label: 'Fat', value: goals.fat, color: Theme.colors.fat, unit: 'g' },
-          ].map(macro => (
-            <View key={macro.label} style={styles.macroTargetCard}>
-              <View style={[styles.macroTargetDot, { backgroundColor: macro.color }]} />
-              <Text style={styles.macroTargetValue}>
-                {macro.value}
-                {macro.unit}
-              </Text>
-              <Text style={styles.macroTargetLabel}>{macro.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.adjustNote}>
-          <Ionicons
-            name="information-circle-outline"
-            size={18}
-            color={Theme.colors.textSecondary}
-          />
-          <Text style={styles.adjustNoteText}>
-            You can adjust these targets anytime in Settings
-          </Text>
-        </View>
-      </ScrollView>
-    );
-  };
-
-  const renderCameraDemo = (): React.JSX.Element => (
+  const renderActivityLevel = (): React.JSX.Element => (
     <ScrollView
       contentContainerStyle={styles.stepScrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.stepTitle}>How It Works</Text>
-      <Text style={styles.stepSubtitle}>Our AI analyzes your food photos in seconds</Text>
-
-      <View style={styles.demoContainer}>
-        <View style={styles.demoStep}>
-          <View style={styles.demoStepNumber}>
-            <Text style={styles.demoStepNumText}>1</Text>
-          </View>
-          <View style={styles.demoVisual}>
-            <View style={styles.demoPhoneFrame}>
-              <Ionicons name="camera" size={40} color={Theme.colors.primary} />
-              <View style={styles.demoFocusGuide} />
-            </View>
-          </View>
-          <Text style={styles.demoStepTitle}>Snap a Photo</Text>
-          <Text style={styles.demoStepDesc}>Point your camera at any meal</Text>
-        </View>
-
-        <View style={styles.demoArrow}>
-          <Ionicons name="arrow-down" size={24} color={Theme.colors.primary} />
-        </View>
-
-        <View style={styles.demoStep}>
-          <View style={styles.demoStepNumber}>
-            <Text style={styles.demoStepNumText}>2</Text>
-          </View>
-          <View style={styles.demoVisual}>
-            <View style={styles.demoAnalysis}>
-              <View style={styles.demoSpinner}>
-                <Ionicons name="sparkles" size={32} color={Theme.colors.primary} />
+      <Text style={styles.stepTitle}>How active are you?</Text>
+      <Text style={styles.stepSubtitle}>This determines your daily energy expenditure</Text>
+      <View style={styles.activityList}>
+        {[
+          {
+            key: 'sedentary' as ActivityLevel,
+            label: 'Sedentary',
+            desc: 'Desk job, little exercise',
+          },
+          {
+            key: 'light' as ActivityLevel,
+            label: 'Lightly Active',
+            desc: 'Light exercise 1-3x/week',
+          },
+          {
+            key: 'moderate' as ActivityLevel,
+            label: 'Moderately Active',
+            desc: 'Moderate exercise 3-5x/week',
+          },
+          {
+            key: 'very_active' as ActivityLevel,
+            label: 'Very Active',
+            desc: 'Hard exercise 6-7x/week',
+          },
+          {
+            key: 'athlete' as ActivityLevel,
+            label: 'Athlete',
+            desc: '2x/day training or physical job',
+          },
+        ].map(a => {
+          const isSelected = selectedActivity === a.key;
+          return (
+            <TouchableOpacity
+              key={a.key}
+              style={[styles.activityCard, isSelected && styles.activityCardSelected]}
+              onPress={() => {
+                haptics.selection();
+                setSelectedActivity(a.key);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.activityTextBlock}>
+                <Text style={[styles.activityLabel, isSelected && styles.activityLabelSelected]}>
+                  {a.label}
+                </Text>
+                <Text style={styles.activityDesc}>{a.desc}</Text>
               </View>
-              <Text style={styles.demoAnalysisLabel}>AI Analyzing...</Text>
-            </View>
-          </View>
-          <Text style={styles.demoStepTitle}>AI Identifies Food</Text>
-          <Text style={styles.demoStepDesc}>Recognizes ingredients and portions</Text>
-        </View>
-
-        <View style={styles.demoArrow}>
-          <Ionicons name="arrow-down" size={24} color={Theme.colors.primary} />
-        </View>
-
-        <View style={styles.demoStep}>
-          <View style={styles.demoStepNumber}>
-            <Text style={styles.demoStepNumText}>3</Text>
-          </View>
-          <View style={styles.demoResultCard}>
-            <Text style={styles.demoFoodName}>Grilled Chicken Salad</Text>
-            <View style={styles.demoMacroRow}>
-              <View style={styles.demoMacro}>
-                <Text style={styles.demoMacroVal}>350</Text>
-                <Text style={styles.demoMacroLbl}>cal</Text>
-              </View>
-              <View style={styles.demoMacroDivider} />
-              <View style={styles.demoMacro}>
-                <Text style={[styles.demoMacroVal, { color: Theme.colors.protein }]}>35g</Text>
-                <Text style={styles.demoMacroLbl}>protein</Text>
-              </View>
-              <View style={styles.demoMacroDivider} />
-              <View style={styles.demoMacro}>
-                <Text style={[styles.demoMacroVal, { color: Theme.colors.carbs }]}>12g</Text>
-                <Text style={styles.demoMacroLbl}>carbs</Text>
-              </View>
-              <View style={styles.demoMacroDivider} />
-              <View style={styles.demoMacro}>
-                <Text style={[styles.demoMacroVal, { color: Theme.colors.fat }]}>18g</Text>
-                <Text style={styles.demoMacroLbl}>fat</Text>
-              </View>
-            </View>
-          </View>
-          <Text style={styles.demoStepTitle}>Get Full Breakdown</Text>
-          <Text style={styles.demoStepDesc}>Calories and macros logged instantly</Text>
-        </View>
+              {isSelected && (
+                <Ionicons name="checkmark-circle" size={24} color={Theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </ScrollView>
   );
 
+  const renderTargetWeight = (): React.JSX.Element => (
+    <ScrollView
+      contentContainerStyle={styles.stepScrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.stepTitle}>What's your target weight?</Text>
+      <Text style={styles.stepSubtitle}>
+        {selectedGoal === 'lose'
+          ? 'We recommend losing 1-2 lbs per week for sustainable results'
+          : 'We recommend gaining 0.5-1 lb per week for lean muscle'}
+      </Text>
+      <View style={styles.stepperContainer}>
+        <TouchableOpacity
+          style={styles.stepperButton}
+          onPress={() => {
+            haptics.light();
+            setTargetWeightLbs(Math.max(80, targetWeightLbs - 1));
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="remove" size={32} color={Theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.stepperValueWrap}>
+          <Text style={styles.stepperValue}>{targetWeightLbs}</Text>
+          <Text style={styles.stepperUnit}>lbs</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.stepperButton}
+          onPress={() => {
+            haptics.light();
+            setTargetWeightLbs(Math.min(400, targetWeightLbs + 1));
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={32} color={Theme.colors.text} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.targetNote}>
+        <Text style={styles.targetNoteText}>
+          Current weight: {weightLbs} lbs {'\u2192'} Goal: {targetWeightLbs} lbs
+        </Text>
+        <Text style={styles.targetNoteSub}>
+          {Math.abs(weightLbs - targetWeightLbs)} lbs{' '}
+          {selectedGoal === 'lose' ? 'to lose' : 'to gain'}
+        </Text>
+      </View>
+    </ScrollView>
+  );
+
+  const renderPlan = (): React.JSX.Element => {
+    const displayPlan = plan ?? { dailyCalories: 2000, protein: 150, carbs: 200, fat: 70 };
+    const goalLabels: Record<string, string> = {
+      lose: 'lose weight',
+      maintain: 'maintain weight',
+      gain: 'build muscle',
+    };
+    const goalLabel = selectedGoal ? goalLabels[selectedGoal] : 'reach your goals';
+
+    return (
+      <ScrollView contentContainerStyle={styles.planContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.planBadge}>
+          <Ionicons name="sparkles" size={16} color={Theme.colors.primary} />
+          <Text style={styles.planBadgeText}>Your Personalized Plan</Text>
+        </View>
+
+        <Text style={styles.planCalorieNumber}>{displayPlan.dailyCalories.toLocaleString()}</Text>
+        <Text style={styles.planCalorieUnit}>calories per day</Text>
+
+        <Text style={styles.planGoalText}>
+          Based on your profile, we recommend{' '}
+          <Text style={{ color: Theme.colors.primary, fontWeight: '600' }}>
+            {displayPlan.dailyCalories.toLocaleString()} calories
+          </Text>{' '}
+          to {goalLabel}
+        </Text>
+
+        {/* Macro bars */}
+        <View style={styles.macroBarsContainer}>
+          {[
+            {
+              label: 'Protein',
+              value: displayPlan.protein,
+              color: Theme.colors.protein,
+              pct: Math.round(((displayPlan.protein * 4) / displayPlan.dailyCalories) * 100),
+            },
+            {
+              label: 'Carbs',
+              value: displayPlan.carbs,
+              color: Theme.colors.carbs,
+              pct: Math.round(((displayPlan.carbs * 4) / displayPlan.dailyCalories) * 100),
+            },
+            {
+              label: 'Fat',
+              value: displayPlan.fat,
+              color: Theme.colors.fat,
+              pct: Math.round(((displayPlan.fat * 9) / displayPlan.dailyCalories) * 100),
+            },
+          ].map(m => (
+            <View key={m.label} style={styles.macroBarRow}>
+              <View style={styles.macroBarLabel}>
+                <Text style={styles.macroBarLabelText}>{m.label}</Text>
+                <Text style={styles.macroBarValue}>{m.value}g</Text>
+              </View>
+              <View style={styles.macroBarTrack}>
+                <View
+                  style={[styles.macroBarFill, { width: `${m.pct}%`, backgroundColor: m.color }]}
+                />
+              </View>
+              <Text style={styles.macroBarPct}>{m.pct}%</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Projected timeline */}
+        {needsTargetWeight && projectedWeeks > 0 && (
+          <View style={styles.projectionCard}>
+            <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
+            <View style={styles.projectionText}>
+              <Text style={styles.projectionTitle}>
+                You'll reach {targetWeightLbs} lbs by {projectedDate}
+              </Text>
+              <Text style={styles.projectionSub}>
+                {projectedWeeks} weeks at a healthy, sustainable pace
+              </Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
   const renderStepContent = (): React.JSX.Element => {
-    switch (step) {
-      case 0:
+    switch (screenId) {
+      case 'welcome':
         return renderWelcome();
-      case 1:
-        return renderDietSelection();
-      case 2:
+      case 'gender':
+        return renderGender();
+      case 'age':
+        return renderAge();
+      case 'measurements':
+        return renderMeasurements();
+      case 'goal':
         return renderGoalSelection();
-      case 3:
-        return renderCalorieCalculator();
-      case 4:
-        return renderCameraDemo();
+      case 'activity':
+        return renderActivityLevel();
+      case 'targetWeight':
+        return renderTargetWeight();
+      case 'plan':
+        return renderPlan();
+      case 'paywall':
+        return renderPlan(); // paywall is handled by App.tsx phase
       default:
         return renderWelcome();
     }
   };
 
+  const getButtonText = (): string => {
+    if (step === 0) return 'Get Started';
+    if (screenId === 'plan') return 'See My Plan';
+    if (step === totalSteps - 1) return 'Continue';
+    return 'Continue';
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      {step > 0 && (
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={handleBack}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="chevron-back" size={24} color={Theme.colors.text} />
-          </TouchableOpacity>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressTrack}>
-              <Animated.View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-            </View>
+    <View style={styles.container}>
+      {/* Gradient background at top */}
+      <LinearGradient
+        colors={['#0F2240', '#0B1A2E', '#0B1A2E']}
+        style={styles.gradientBg}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.4 }}
+      />
+
+      <SafeAreaView style={styles.safeArea}>
+        {/* Progress bar — thin green line at top */}
+        {step > 0 && (
+          <View style={styles.progressBarOuter}>
+            <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
           </View>
-          <Text style={styles.stepIndicator}>
-            {step}/{totalSteps - 1}
-          </Text>
-        </View>
-      )}
-
-      <Animated.View
-        style={[
-          styles.animatedContent,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
-        {renderStepContent()}
-      </Animated.View>
-
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.continueButton, !canProceed() && styles.continueButtonDisabled]}
-          onPress={handleNext}
-          disabled={!canProceed()}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.continueButtonText}>
-            {step === 0 ? 'Get Started' : step === totalSteps - 1 ? 'Start Tracking' : 'Continue'}
-          </Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-        {step === 0 && (
-          <Text style={styles.termsText}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </Text>
         )}
-      </View>
-    </SafeAreaView>
+
+        {/* Top bar */}
+        {step > 0 && (
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={handleBack}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={24} color={Theme.colors.text} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }} />
+            <Text style={styles.stepIndicator}>
+              {step} of {totalSteps - 1}
+            </Text>
+          </View>
+        )}
+
+        {/* Animated content */}
+        <Animated.View
+          style={[
+            styles.animatedContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {renderStepContent()}
+        </Animated.View>
+
+        {/* Bottom CTA */}
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.continueButton, !canProceed() && styles.continueButtonDisabled]}
+            onPress={handleNext}
+            disabled={!canProceed()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.continueButtonText}>{getButtonText()}</Text>
+            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          {step === 0 && (
+            <Text style={styles.termsText}>
+              By continuing, you agree to our Terms of Service and Privacy Policy
+            </Text>
+          )}
+        </View>
+      </SafeAreaView>
+    </View>
   );
 };
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
   },
+  gradientBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+  },
+  safeArea: {
+    flex: 1,
+  },
+
+  // Progress bar
+  progressBarOuter: {
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  progressBarFill: {
+    height: 3,
+    backgroundColor: Theme.colors.primary,
+    borderRadius: 1.5,
+  },
+
+  // Top bar
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingVertical: 8,
   },
   backBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  progressContainer: {
-    flex: 1,
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: Theme.colors.border,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: 4,
-    backgroundColor: Theme.colors.primary,
-    borderRadius: 2,
   },
   stepIndicator: {
     fontSize: 14,
     color: Theme.colors.textSecondary,
-    fontWeight: '600',
-    minWidth: 30,
-    textAlign: 'right',
+    fontWeight: '500',
   },
+
   animatedContent: {
     flex: 1,
   },
+
+  // Bottom bar
   bottomBar: {
     paddingHorizontal: 24,
     paddingBottom: Platform.OS === 'ios' ? 8 : 20,
@@ -581,12 +882,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Theme.colors.primary,
     paddingVertical: 18,
-    borderRadius: Theme.border.radius.large,
+    borderRadius: 16,
     gap: 8,
     ...Theme.shadow.medium,
   },
   continueButtonDisabled: {
-    opacity: 0.4,
+    opacity: 0.35,
   },
   continueButtonText: {
     color: '#FFFFFF',
@@ -601,38 +902,42 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // Welcome screen
+  // ========== Welcome ==========
   welcomeContent: {
     flexGrow: 1,
     paddingHorizontal: 28,
-    paddingTop: 40,
+    paddingTop: 48,
     paddingBottom: 20,
   },
   welcomeHero: {
     alignItems: 'center',
     marginBottom: 48,
   },
-  heroGlowRing: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    borderWidth: 2,
-    borderColor: 'rgba(46, 213, 115, 0.15)',
+  heroGlowOuter: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(46, 213, 115, 0.04)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 28,
   },
-  heroIconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Theme.colors.primaryLight,
+  heroGlowRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 1.5,
+    borderColor: 'rgba(46, 213, 115, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Theme.shadow.medium,
   },
-  heroIcon: {
-    // Ionicon replaces emoji
+  heroIconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(46, 213, 115, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   welcomeTitle: {
     fontSize: 32,
@@ -640,6 +945,7 @@ const styles = StyleSheet.create({
     color: Theme.colors.text,
     textAlign: 'center',
     lineHeight: 40,
+    letterSpacing: -0.5,
   },
   welcomeSubtitle: {
     fontSize: 16,
@@ -652,23 +958,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   featureList: {
-    gap: 20,
+    gap: 14,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    ...Theme.shadow.small,
   },
   featureIconCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Theme.colors.primaryLight,
+    backgroundColor: 'rgba(46, 213, 115, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -687,10 +992,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Diet selection
+  // ========== Step layout ==========
   stepScrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 24,
     paddingBottom: 20,
   },
   stepTitle: {
@@ -698,98 +1003,190 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Theme.colors.text,
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   stepSubtitle: {
     fontSize: 16,
     color: Theme.colors.textSecondary,
     lineHeight: 24,
-    marginBottom: 28,
+    marginBottom: 32,
   },
-  optionGrid: {
+
+  // ========== Gender ==========
+  genderGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
   },
-  optionCard: {
-    width: (SCREEN_WIDTH - 60) / 2,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
-    padding: 16,
+  genderCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 12,
+    alignItems: 'center',
     borderWidth: 2,
-    borderColor: Theme.colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     position: 'relative',
-    minHeight: 120,
   },
-  optionCardSelected: {
+  genderCardSelected: {
     borderColor: Theme.colors.primary,
-    backgroundColor: Theme.colors.highlight,
+    backgroundColor: 'rgba(46, 213, 115, 0.06)',
+    shadowColor: Theme.colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  optionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Theme.colors.highlight,
+  genderIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
-  optionIconWrapSelected: {
-    backgroundColor: Theme.colors.primaryLight,
+  genderIconWrapSelected: {
+    backgroundColor: 'rgba(46, 213, 115, 0.12)',
   },
-  optionLabel: {
-    fontSize: 15,
+  genderLabel: {
+    fontSize: 16,
     fontWeight: '600',
     color: Theme.colors.text,
   },
-  optionLabelSelected: {
+  genderLabelSelected: {
     color: Theme.colors.primary,
   },
-  optionDesc: {
-    fontSize: 12,
-    color: Theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  checkBadge: {
+  selectedCheck: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    top: 12,
+    right: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: Theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Goal selection
+  // ========== Stepper (age, weight) ==========
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 24,
+  },
+  stepperButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperValueWrap: {
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  stepperValue: {
+    fontSize: 56,
+    fontWeight: '200',
+    color: Theme.colors.text,
+    letterSpacing: -2,
+    fontVariant: ['tabular-nums'] as any,
+  },
+  stepperUnit: {
+    fontSize: 16,
+    color: Theme.colors.textSecondary,
+    marginTop: -4,
+    fontWeight: '400',
+  },
+
+  // ========== Measurements ==========
+  measureSection: {
+    marginBottom: 36,
+  },
+  measureLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Theme.colors.text,
+    marginBottom: 16,
+  },
+  measureRow: {
+    flexDirection: 'row',
+    gap: 20,
+    justifyContent: 'center',
+  },
+  measureGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  measureBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  measureValueWrap: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  measureValue: {
+    fontSize: 40,
+    fontWeight: '200',
+    color: Theme.colors.text,
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'] as any,
+  },
+  measureUnit: {
+    fontSize: 14,
+    color: Theme.colors.textSecondary,
+    fontWeight: '400',
+    marginTop: -2,
+  },
+
+  // ========== Goal ==========
   goalList: {
-    gap: 14,
+    gap: 12,
   },
   goalCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
-    padding: 18,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 2,
-    borderColor: Theme.colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     position: 'relative',
   },
   goalCardSelected: {
     borderColor: Theme.colors.primary,
-    backgroundColor: Theme.colors.highlight,
+    backgroundColor: 'rgba(46, 213, 115, 0.06)',
+    shadowColor: Theme.colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
   goalIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Theme.colors.highlight,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 16,
   },
   goalIconWrapSelected: {
-    backgroundColor: Theme.colors.primaryLight,
+    backgroundColor: 'rgba(46, 213, 115, 0.12)',
   },
   goalTextBlock: {
     flex: 1,
@@ -803,221 +1200,188 @@ const styles = StyleSheet.create({
     color: Theme.colors.primary,
   },
   goalDesc: {
-    fontSize: 13,
-    color: Theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  goalCalories: {
-    alignItems: 'flex-end',
-    marginRight: 4,
-  },
-  goalCalNum: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Theme.colors.text,
-  },
-  goalCalNumSelected: {
-    color: Theme.colors.primary,
-  },
-  goalCalUnit: {
-    fontSize: 12,
-    color: Theme.colors.textSecondary,
-  },
-  goalCheckmark: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-  },
-
-  // Calorie calculator
-  calorieHero: {
-    alignItems: 'center',
-    marginVertical: 32,
-  },
-  calorieRingLarge: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 6,
-    borderColor: Theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    ...Theme.shadow.large,
-  },
-  calorieHeroNumber: {
-    fontSize: 56,
-    fontWeight: '200',
-    color: Theme.colors.text,
-    letterSpacing: -2,
-  },
-  calorieHeroUnit: {
     fontSize: 14,
     color: Theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  macroTargets: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  macroTargetCard: {
-    flex: 1,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    ...Theme.shadow.small,
-  },
-  macroTargetDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  macroTargetValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Theme.colors.text,
-  },
-  macroTargetLabel: {
-    fontSize: 13,
-    color: Theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  adjustNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.border.radius.medium,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  adjustNoteText: {
-    fontSize: 14,
-    color: Theme.colors.textSecondary,
-    flex: 1,
+    marginTop: 3,
+    lineHeight: 20,
   },
 
-  // Camera demo
-  demoContainer: {
-    alignItems: 'center',
-    gap: 8,
+  // ========== Activity ==========
+  activityList: {
+    gap: 10,
   },
-  demoStep: {
+  activityCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    width: '100%',
-  },
-  demoStepNumber: {
-    width: 28,
-    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 14,
-    backgroundColor: Theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  demoStepNumText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  demoVisual: {
-    marginBottom: 12,
-  },
-  demoPhoneFrame: {
-    width: 160,
-    height: 120,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 18,
     borderWidth: 2,
-    borderColor: Theme.colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  demoFocusGuide: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderWidth: 2,
-    borderColor: 'rgba(46, 213, 115, 0.4)',
-    borderRadius: 12,
-  },
-  demoAnalysis: {
-    width: 160,
-    height: 80,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Theme.colors.border,
-  },
-  demoSpinner: {
-    marginBottom: 4,
-  },
-  demoAnalysisLabel: {
-    fontSize: 13,
-    color: Theme.colors.textSecondary,
-    fontWeight: '600',
-  },
-  demoResultCard: {
-    width: '100%',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
+  activityCardSelected: {
     borderColor: Theme.colors.primary,
-    marginBottom: 12,
+    backgroundColor: 'rgba(46, 213, 115, 0.06)',
+    shadowColor: Theme.colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  demoFoodName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Theme.colors.text,
-    textAlign: 'center',
-    marginBottom: 12,
+  activityTextBlock: {
+    flex: 1,
   },
-  demoMacroRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  demoMacro: {
-    alignItems: 'center',
-  },
-  demoMacroVal: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Theme.colors.text,
-  },
-  demoMacroLbl: {
-    fontSize: 12,
-    color: Theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  demoMacroDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: Theme.colors.border,
-  },
-  demoArrow: {
-    paddingVertical: 4,
-  },
-  demoStepTitle: {
+  activityLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: Theme.colors.text,
-    marginTop: 4,
   },
-  demoStepDesc: {
-    fontSize: 14,
+  activityLabelSelected: {
+    color: Theme.colors.primary,
+  },
+  activityDesc: {
+    fontSize: 13,
     color: Theme.colors.textSecondary,
     marginTop: 2,
-    marginBottom: 8,
+  },
+
+  // ========== Target Weight ==========
+  targetNote: {
+    marginTop: 40,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  targetNoteText: {
+    fontSize: 16,
+    color: Theme.colors.text,
+    fontWeight: '500',
+  },
+  targetNoteSub: {
+    fontSize: 14,
+    color: Theme.colors.primary,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+
+  // ========== Plan (Value Moment) ==========
+  planContent: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46, 213, 115, 0.1)',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: 24,
+  },
+  planBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Theme.colors.primary,
+    letterSpacing: 0.3,
+  },
+  planCalorieNumber: {
+    fontSize: 72,
+    fontWeight: '200',
+    color: Theme.colors.text,
+    letterSpacing: -3,
+    lineHeight: 80,
+    fontVariant: ['tabular-nums'] as any,
+  },
+  planCalorieUnit: {
+    fontSize: 16,
+    color: Theme.colors.textSecondary,
+    marginTop: 4,
+    fontWeight: '400',
+    letterSpacing: 0.5,
+  },
+  planGoalText: {
+    fontSize: 15,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 20,
+    marginBottom: 32,
+    paddingHorizontal: 8,
+  },
+
+  // Macro bars
+  macroBarsContainer: {
+    width: '100%',
+    gap: 16,
+    marginBottom: 24,
+  },
+  macroBarRow: {
+    gap: 6,
+  },
+  macroBarLabel: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  macroBarLabelText: {
+    fontSize: 14,
+    color: Theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  macroBarValue: {
+    fontSize: 15,
+    color: Theme.colors.text,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'] as any,
+  },
+  macroBarTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  macroBarFill: {
+    height: 10,
+    borderRadius: 5,
+  },
+  macroBarPct: {
+    fontSize: 12,
+    color: Theme.colors.textSecondary,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'] as any,
+  },
+
+  // Projection
+  projectionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46, 213, 115, 0.06)',
+    borderRadius: 14,
+    padding: 18,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(46, 213, 115, 0.15)',
+    width: '100%',
+  },
+  projectionText: {
+    flex: 1,
+  },
+  projectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Theme.colors.text,
+    lineHeight: 21,
+  },
+  projectionSub: {
+    fontSize: 13,
+    color: Theme.colors.textSecondary,
+    marginTop: 2,
   },
 });
 

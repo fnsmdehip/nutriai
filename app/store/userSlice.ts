@@ -1,17 +1,30 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export type Gender = 'male' | 'female' | 'other';
+export type Goal = 'lose' | 'maintain' | 'gain';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very_active' | 'athlete';
+export type DietType = 'regular' | 'pescatarian' | 'vegetarian' | 'vegan';
+
+export interface UserProfile {
+  gender: Gender | null;
+  age: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  goalWeight: number | null;
+  goal: Goal | null;
+  activityLevel: ActivityLevel | null;
+  dietType: DietType | null;
+  dailyCalories: number;
+  proteinGoal: number;
+  carbGoal: number;
+  fatGoal: number;
+  useImperial: boolean;
+}
+
 interface UserState {
   isAuthenticated: boolean;
   hasCompletedOnboarding: boolean;
-  userProfile: {
-    gender: 'male' | 'female' | 'other' | null;
-    birthdate: string | null;
-    height: number | null;
-    weight: number | null;
-    workoutFrequency: '0-2' | '3-5' | '6+' | null;
-    goal: 'lose' | 'maintain' | 'gain' | null;
-    dietType: 'regular' | 'pescatarian' | 'vegetarian' | 'vegan' | null;
-  };
+  userProfile: UserProfile;
   onboardingProgress: number;
 }
 
@@ -20,12 +33,18 @@ const initialState: UserState = {
   hasCompletedOnboarding: false,
   userProfile: {
     gender: null,
-    birthdate: null,
-    height: null,
-    weight: null,
-    workoutFrequency: null,
+    age: null,
+    heightCm: null,
+    weightKg: null,
+    goalWeight: null,
     goal: null,
+    activityLevel: null,
     dietType: null,
+    dailyCalories: 2000,
+    proteinGoal: 150,
+    carbGoal: 200,
+    fatGoal: 70,
+    useImperial: true,
   },
   onboardingProgress: 0,
 };
@@ -34,37 +53,57 @@ const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    login: (state) => {
+    login: state => {
       state.isAuthenticated = true;
     },
-    logout: (state) => {
+    logout: state => {
       state.isAuthenticated = false;
     },
-    completeOnboarding: (state) => {
+    completeOnboarding: state => {
       state.hasCompletedOnboarding = true;
     },
-    setGender: (state, action: PayloadAction<'male' | 'female' | 'other'>) => {
+    setGender: (state, action: PayloadAction<Gender>) => {
       state.userProfile.gender = action.payload;
     },
-    setBirthdate: (state, action: PayloadAction<string>) => {
-      state.userProfile.birthdate = action.payload;
+    setAge: (state, action: PayloadAction<number>) => {
+      state.userProfile.age = action.payload;
     },
-    setHeight: (state, action: PayloadAction<number>) => {
-      state.userProfile.height = action.payload;
+    setHeightCm: (state, action: PayloadAction<number>) => {
+      state.userProfile.heightCm = action.payload;
     },
-    setWeight: (state, action: PayloadAction<number>) => {
-      state.userProfile.weight = action.payload;
+    setWeightKg: (state, action: PayloadAction<number>) => {
+      state.userProfile.weightKg = action.payload;
     },
-    setWorkoutFrequency: (state, action: PayloadAction<'0-2' | '3-5' | '6+' | null>) => {
-      state.userProfile.workoutFrequency = action.payload;
+    setGoalWeight: (state, action: PayloadAction<number | null>) => {
+      state.userProfile.goalWeight = action.payload;
     },
-    setGoal: (state, action: PayloadAction<'lose' | 'maintain' | 'gain' | null>) => {
+    setGoal: (state, action: PayloadAction<Goal>) => {
       state.userProfile.goal = action.payload;
     },
-    setDietType: (state, action: PayloadAction<'regular' | 'pescatarian' | 'vegetarian' | 'vegan' | null>) => {
+    setActivityLevel: (state, action: PayloadAction<ActivityLevel>) => {
+      state.userProfile.activityLevel = action.payload;
+    },
+    setDietType: (state, action: PayloadAction<DietType>) => {
       state.userProfile.dietType = action.payload;
     },
-    advanceOnboardingStep: (state) => {
+    setUseImperial: (state, action: PayloadAction<boolean>) => {
+      state.userProfile.useImperial = action.payload;
+    },
+    setCalculatedNutrition: (
+      state,
+      action: PayloadAction<{
+        dailyCalories: number;
+        proteinGoal: number;
+        carbGoal: number;
+        fatGoal: number;
+      }>,
+    ) => {
+      state.userProfile.dailyCalories = action.payload.dailyCalories;
+      state.userProfile.proteinGoal = action.payload.proteinGoal;
+      state.userProfile.carbGoal = action.payload.carbGoal;
+      state.userProfile.fatGoal = action.payload.fatGoal;
+    },
+    advanceOnboardingStep: state => {
       state.onboardingProgress += 1;
     },
     setOnboardingProgress: (state, action: PayloadAction<number>) => {
@@ -78,14 +117,17 @@ export const {
   logout,
   completeOnboarding,
   setGender,
-  setBirthdate,
-  setHeight,
-  setWeight,
-  setWorkoutFrequency,
+  setAge,
+  setHeightCm,
+  setWeightKg,
+  setGoalWeight,
   setGoal,
+  setActivityLevel,
   setDietType,
+  setUseImperial,
+  setCalculatedNutrition,
   advanceOnboardingStep,
   setOnboardingProgress,
 } = userSlice.actions;
 
-export default userSlice.reducer; 
+export default userSlice.reducer;

@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
@@ -40,7 +41,7 @@ const PLANS: PlanDisplay[] = [
     period: '/year',
     perDay: '$0.08/day',
     perMonth: '$2.50/mo',
-    badge: 'Save 50%',
+    badge: 'BEST VALUE',
     trialText: '7-day free trial',
   },
   {
@@ -74,7 +75,10 @@ const PaywallScreen = (): React.JSX.Element => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const dispatch = useAppDispatch();
 
-  const goal = useAppSelector(state => state.user.userProfile.goal);
+  const userProfile = useAppSelector(state => state.user.userProfile);
+  const goal = userProfile.goal;
+  const dailyCalories = userProfile.dailyCalories;
+  const goalWeight = userProfile.goalWeight;
 
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('yearly');
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -161,154 +165,187 @@ const PaywallScreen = (): React.JSX.Element => {
     }
   }, []);
 
+  // Build personalized headline
+  const getHeadline = (): string => {
+    if (dailyCalories && dailyCalories > 0 && goal) {
+      const goalWeightLbs = goalWeight ? Math.round(goalWeight * 2.20462) : null;
+      if (goalWeightLbs && goal !== 'maintain') {
+        return `Your ${dailyCalories.toLocaleString()} calorie plan to reach ${goalWeightLbs} lbs is ready`;
+      }
+      return `Your ${dailyCalories.toLocaleString()} calorie plan is ready`;
+    }
+    return 'Unlock your personalized nutrition plan';
+  };
+
   const planOrder: PlanKey[] = ['yearly', 'monthly'];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.topBar}>
-        <View style={styles.spacer} />
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => {
-            haptics.light();
-            safeGoBack();
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={22} color={Theme.colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <View style={styles.heroStarField}>
-            <Ionicons name="star" size={40} color={Theme.colors.premium} />
-          </View>
-          <Text style={styles.heroTitle}>Go Premium</Text>
-          <Text style={styles.heroSubtitle}>Unlock unlimited AI-powered nutrition tracking</Text>
-          {goal && GOAL_LABELS[goal] ? (
-            <Text style={styles.personalizedText}>
-              Based on your goal to {GOAL_LABELS[goal]}, Premium gives you the insights you need.
-            </Text>
-          ) : null}
-        </View>
-
-        <View style={styles.featuresGrid}>
-          {FEATURES.map(f => (
-            <View key={f.text} style={styles.featureChip}>
-              <Ionicons name={f.icon} size={18} color={Theme.colors.primary} />
-              <Text style={styles.featureChipText}>{f.text}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.plansRow}>
-          {planOrder.map(planKey => {
-            const plan = PLANS.find(p => p.key === planKey)!;
-            const isSelected = selectedPlan === plan.key;
-            const isBestValue = plan.badge !== null;
-
-            return (
-              <TouchableOpacity
-                key={plan.key}
-                style={[
-                  styles.planCard,
-                  isSelected && styles.planCardSelected,
-                  isBestValue && isSelected && styles.planCardBest,
-                ]}
-                onPress={() => {
-                  haptics.selection();
-                  setSelectedPlan(plan.key);
-                }}
-                activeOpacity={0.8}
-              >
-                {plan.badge && (
-                  <View style={styles.bestBadge}>
-                    <Text style={styles.bestBadgeText}>{plan.badge}</Text>
-                  </View>
-                )}
-
-                <Text style={[styles.planTitle, isSelected && styles.planTitleSelected]}>
-                  {plan.title}
-                </Text>
-
-                <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
-                  {plan.price}
-                </Text>
-                <Text style={styles.planPeriod}>{plan.period}</Text>
-
-                {plan.perMonth && <Text style={styles.planPerMonth}>{plan.perMonth}</Text>}
-
-                {plan.trialText && (
-                  <View style={styles.trialBadge}>
-                    <Text style={styles.trialText}>{plan.trialText}</Text>
-                  </View>
-                )}
-
-                <Text style={styles.planPerDay}>{plan.perDay}</Text>
-
-                <View style={[styles.planRadio, isSelected && styles.planRadioSelected]}>
-                  {isSelected && <View style={styles.planRadioInner} />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <Animated.View
-          style={[
-            styles.ctaSection,
-            {
-              opacity: ctaOpacity,
-              transform: [{ translateY: ctaSlide }, { scale: pulseAnim }],
-            },
-          ]}
-        >
+    <View style={styles.outerContainer}>
+      <LinearGradient
+        colors={['#0F2240', '#0B1A2E', '#0B1A2E']}
+        style={styles.gradientBg}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 0.4 }}
+      />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.topBar}>
+          <View style={styles.spacer} />
           <TouchableOpacity
-            style={[styles.purchaseButton, isPurchasing && styles.purchaseButtonDisabled]}
-            onPress={handlePurchase}
-            disabled={isPurchasing}
-            activeOpacity={0.85}
+            style={styles.closeButton}
+            onPress={() => {
+              haptics.light();
+              safeGoBack();
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            {isPurchasing ? (
-              <View style={styles.loadingDots}>
-                <View style={styles.dot} />
-                <View style={[styles.dot, styles.dotDelay1]} />
-                <View style={[styles.dot, styles.dotDelay2]} />
-              </View>
-            ) : (
-              <Text style={styles.purchaseButtonText}>
-                {selectedPlan === 'yearly' ? 'Start Free Trial' : 'Subscribe Now'}
-              </Text>
-            )}
+            <Ionicons name="close" size={22} color={Theme.colors.textSecondary} />
           </TouchableOpacity>
-        </Animated.View>
+        </View>
 
-        <Text style={styles.cancelText}>Cancel anytime. No commitment.</Text>
-
-        <TouchableOpacity
-          style={styles.restoreButton}
-          onPress={handleRestore}
-          disabled={isPurchasing}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.restoreText}>Restore Purchases</Text>
-        </TouchableOpacity>
+          <View style={styles.hero}>
+            <View style={styles.heroStarField}>
+              <Ionicons name="star" size={36} color={Theme.colors.premium} />
+            </View>
+            <Text style={styles.heroTitle}>{getHeadline()}</Text>
+            {goal && GOAL_LABELS[goal] ? (
+              <Text style={styles.personalizedText}>
+                Premium gives you the tools to {GOAL_LABELS[goal]} effectively
+              </Text>
+            ) : null}
+          </View>
 
-        <Text style={styles.legalText}>
-          Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
-          automatically renews unless canceled at least 24 hours before the end of the current
-          period. You can manage and cancel subscriptions in your App Store account settings. Any
-          unused portion of a free trial period will be forfeited if you purchase a subscription.
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+          <View style={styles.featuresGrid}>
+            {FEATURES.map(f => (
+              <View key={f.text} style={styles.featureChip}>
+                <Ionicons name={f.icon} size={18} color={Theme.colors.primary} />
+                <Text style={styles.featureChipText}>{f.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.plansRow}>
+            {planOrder.map(planKey => {
+              const plan = PLANS.find(p => p.key === planKey)!;
+              const isSelected = selectedPlan === plan.key;
+              const isBestValue = plan.badge !== null;
+
+              return (
+                <TouchableOpacity
+                  key={plan.key}
+                  style={[
+                    styles.planCard,
+                    isSelected && styles.planCardSelected,
+                    isBestValue && isSelected && styles.planCardBest,
+                  ]}
+                  onPress={() => {
+                    haptics.selection();
+                    setSelectedPlan(plan.key);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  {plan.badge && (
+                    <View style={styles.bestBadge}>
+                      <Text style={styles.bestBadgeText}>{plan.badge}</Text>
+                    </View>
+                  )}
+
+                  <Text style={[styles.planTitle, isSelected && styles.planTitleSelected]}>
+                    {plan.title}
+                  </Text>
+
+                  <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
+                    {plan.price}
+                  </Text>
+                  <Text style={styles.planPeriod}>{plan.period}</Text>
+
+                  {plan.perMonth && <Text style={styles.planPerMonth}>{plan.perMonth}</Text>}
+
+                  {plan.trialText && (
+                    <View style={styles.trialBadge}>
+                      <Text style={styles.trialText}>{plan.trialText}</Text>
+                    </View>
+                  )}
+
+                  <Text style={styles.planPerDay}>{plan.perDay}</Text>
+
+                  <View style={[styles.planRadio, isSelected && styles.planRadioSelected]}>
+                    {isSelected && <View style={styles.planRadioInner} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Animated.View
+            style={[
+              styles.ctaSection,
+              {
+                opacity: ctaOpacity,
+                transform: [{ translateY: ctaSlide }, { scale: pulseAnim }],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.purchaseButton, isPurchasing && styles.purchaseButtonDisabled]}
+              onPress={handlePurchase}
+              disabled={isPurchasing}
+              activeOpacity={0.85}
+            >
+              {isPurchasing ? (
+                <View style={styles.loadingDots}>
+                  <View style={styles.dot} />
+                  <View style={[styles.dot, styles.dotDelay1]} />
+                  <View style={[styles.dot, styles.dotDelay2]} />
+                </View>
+              ) : (
+                <Text style={styles.purchaseButtonText}>
+                  {selectedPlan === 'yearly' ? 'Start Free Trial' : 'Subscribe Now'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Text style={styles.cancelText}>Cancel anytime. No commitment.</Text>
+
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestore}
+            disabled={isPurchasing}
+          >
+            <Text style={styles.restoreText}>Restore Purchases</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.legalText}>
+            Payment will be charged to your Apple ID account at confirmation of purchase.
+            Subscription automatically renews unless canceled at least 24 hours before the end of
+            the current period. You can manage and cancel subscriptions in your App Store account
+            settings. Any unused portion of a free trial period will be forfeited if you purchase a
+            subscription.
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
     backgroundColor: Theme.colors.background,
+  },
+  gradientBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+  },
+  container: {
+    flex: 1,
   },
   topBar: {
     flexDirection: 'row',
@@ -321,7 +358,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -339,31 +376,26 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   heroTitle: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '700',
     color: Theme.colors.text,
-  },
-  heroSubtitle: {
-    fontSize: 16,
-    fontWeight: '300',
-    color: Theme.colors.textSecondary,
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 26,
-    letterSpacing: 0.2,
+    lineHeight: 34,
+    letterSpacing: -0.3,
+    paddingHorizontal: 8,
   },
   personalizedText: {
-    fontSize: 14,
+    fontSize: 15,
     color: Theme.colors.primary,
     textAlign: 'center',
     marginTop: 12,
-    lineHeight: 20,
+    lineHeight: 22,
     fontWeight: '500',
     paddingHorizontal: 16,
   },
@@ -378,7 +410,7 @@ const styles = StyleSheet.create({
   featureChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 20,
@@ -399,23 +431,28 @@ const styles = StyleSheet.create({
   },
   planCard: {
     flex: 1,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 16,
     padding: 14,
     paddingTop: 20,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Theme.colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     position: 'relative',
     minHeight: 180,
     justifyContent: 'center',
   },
   planCardSelected: {
     borderColor: Theme.colors.primary,
+    shadowColor: Theme.colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   planCardBest: {
     borderColor: Theme.colors.primary,
-    backgroundColor: Theme.colors.highlight,
+    backgroundColor: 'rgba(46, 213, 115, 0.06)',
     transform: [{ scale: 1.02 }],
   },
   bestBadge: {
@@ -433,7 +470,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   planTitle: {
     fontSize: 14,
@@ -465,7 +502,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   trialBadge: {
-    backgroundColor: 'rgba(46, 213, 115, 0.15)',
+    backgroundColor: 'rgba(46, 213, 115, 0.12)',
     paddingVertical: 3,
     paddingHorizontal: 10,
     borderRadius: 10,
@@ -507,7 +544,7 @@ const styles = StyleSheet.create({
   purchaseButton: {
     backgroundColor: Theme.colors.primary,
     paddingVertical: 18,
-    borderRadius: Theme.border.radius.large,
+    borderRadius: 16,
     alignItems: 'center',
     ...Theme.shadow.large,
   },
