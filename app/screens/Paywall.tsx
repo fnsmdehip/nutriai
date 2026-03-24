@@ -15,11 +15,11 @@ import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import { Theme } from '../utils/theme';
 import { haptics } from '../utils/haptics';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setSubscriptionTier, setSubscriptionLoading } from '../store/subscriptionSlice';
 import type { SubscriptionTier } from '../store/subscriptionSlice';
 
-type PlanKey = 'weekly' | 'yearly' | 'monthly';
+type PlanKey = 'yearly' | 'monthly';
 
 interface PlanDisplay {
   key: PlanKey;
@@ -27,27 +27,20 @@ interface PlanDisplay {
   price: string;
   period: string;
   perDay: string;
+  perMonth: string | null;
   badge: string | null;
   trialText: string | null;
 }
 
 const PLANS: PlanDisplay[] = [
   {
-    key: 'weekly',
-    title: 'Weekly',
-    price: '$2.99',
-    period: '/week',
-    perDay: '$0.43/day',
-    badge: null,
-    trialText: null,
-  },
-  {
     key: 'yearly',
     title: 'Annual',
     price: '$29.99',
     period: '/year',
-    perDay: '$0.57/day',
-    badge: 'BEST VALUE',
+    perDay: '$0.08/day',
+    perMonth: '$2.50/mo',
+    badge: 'Save 50%',
     trialText: '7-day free trial',
   },
   {
@@ -56,6 +49,7 @@ const PLANS: PlanDisplay[] = [
     price: '$4.99',
     period: '/month',
     perDay: '$0.17/day',
+    perMonth: null,
     badge: null,
     trialText: null,
   },
@@ -70,9 +64,17 @@ const FEATURES = [
   { icon: 'sync-outline' as const, text: 'Apple Health integration' },
 ];
 
+const GOAL_LABELS: Record<string, string> = {
+  lose: 'lose weight',
+  maintain: 'maintain your weight',
+  gain: 'build muscle',
+};
+
 const PaywallScreen = (): React.JSX.Element => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const dispatch = useAppDispatch();
+
+  const goal = useAppSelector(state => state.user.userProfile.goal);
 
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('yearly');
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -115,6 +117,12 @@ const PaywallScreen = (): React.JSX.Element => {
     return () => pulse.stop();
   }, [pulseAnim, ctaSlide, ctaOpacity]);
 
+  const safeGoBack = useCallback((): void => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  }, [navigation]);
+
   const handlePurchase = useCallback(async (): Promise<void> => {
     haptics.medium();
     try {
@@ -126,21 +134,20 @@ const PaywallScreen = (): React.JSX.Element => {
       });
 
       const tierMap: Record<PlanKey, SubscriptionTier> = {
-        weekly: 'monthly',
         yearly: 'yearly',
         monthly: 'monthly',
       };
 
       dispatch(setSubscriptionTier(tierMap[selectedPlan]));
       haptics.success();
-      navigation.goBack();
+      safeGoBack();
     } catch {
       haptics.error();
     } finally {
       setIsPurchasing(false);
       dispatch(setSubscriptionLoading(false));
     }
-  }, [selectedPlan, dispatch, navigation]);
+  }, [selectedPlan, dispatch, safeGoBack]);
 
   const handleRestore = useCallback(async (): Promise<void> => {
     haptics.light();
@@ -154,7 +161,7 @@ const PaywallScreen = (): React.JSX.Element => {
     }
   }, []);
 
-  const planOrder: PlanKey[] = ['weekly', 'yearly', 'monthly'];
+  const planOrder: PlanKey[] = ['yearly', 'monthly'];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -164,7 +171,7 @@ const PaywallScreen = (): React.JSX.Element => {
           style={styles.closeButton}
           onPress={() => {
             haptics.light();
-            navigation.goBack();
+            safeGoBack();
           }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -179,6 +186,11 @@ const PaywallScreen = (): React.JSX.Element => {
           </View>
           <Text style={styles.heroTitle}>Go Premium</Text>
           <Text style={styles.heroSubtitle}>Unlock unlimited AI-powered nutrition tracking</Text>
+          {goal && GOAL_LABELS[goal] ? (
+            <Text style={styles.personalizedText}>
+              Based on your goal to {GOAL_LABELS[goal]}, Premium gives you the insights you need.
+            </Text>
+          ) : null}
         </View>
 
         <View style={styles.featuresGrid}>
@@ -224,6 +236,8 @@ const PaywallScreen = (): React.JSX.Element => {
                   {plan.price}
                 </Text>
                 <Text style={styles.planPeriod}>{plan.period}</Text>
+
+                {plan.perMonth && <Text style={styles.planPerMonth}>{plan.perMonth}</Text>}
 
                 {plan.trialText && (
                   <View style={styles.trialBadge}>
@@ -342,6 +356,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 24,
   },
+  personalizedText: {
+    fontSize: 14,
+    color: Theme.colors.primary,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 20,
+    fontWeight: '500',
+    paddingHorizontal: 16,
+  },
 
   featuresGrid: {
     flexDirection: 'row',
@@ -430,6 +453,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Theme.colors.textSecondary,
     marginTop: 2,
+  },
+  planPerMonth: {
+    fontSize: 13,
+    color: Theme.colors.primary,
+    fontWeight: '600',
+    marginTop: 4,
   },
   trialBadge: {
     backgroundColor: 'rgba(46, 213, 115, 0.15)',

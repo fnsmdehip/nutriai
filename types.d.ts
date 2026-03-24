@@ -51,12 +51,7 @@ declare global {
   const __DEV__: boolean;
 }
 
-// Add declarations for any other modules that need them
-declare module 'react-native-reanimated' {
-  export * from 'react-native-reanimated';
-}
-
-// For navigation types that might be missing
+// Navigation param list
 declare type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
@@ -68,42 +63,5 @@ declare type RootStackParamList = {
   Main: undefined;
 };
 
-// Export an empty object to make this file a module
+// Make this file a module so `declare global` works correctly
 export {};
-
-// Keep existing type declarations below if any
-
-// Existing content...
-import { Theme } from '@react-navigation/native';
-
-declare module '@react-navigation/native' {
-  export interface Theme {
-    dark: boolean;
-    colors: {
-      primary: string;
-      background: string;
-      card: string;
-      text: string;
-      border: string;
-      notification: string;
-      // Custom colors defined in theme
-      textSecondary: string;
-      destructive: string;
-      success: string;
-      warning: string;
-      tabIconDefault: string;
-      tabIconSelected: string;
-      separator: string;
-      inputBackground: string;
-      inputBorder: string;
-      inputText: string;
-      buttonBackground: string;
-      buttonText: string;
-      link: string;
-    };
-  }
-
-  export function useTheme(): Theme;
-}
-
-// Add any other global type declarations needed for the project

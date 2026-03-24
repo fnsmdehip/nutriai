@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import { Theme } from '../utils/theme';
 import { haptics } from '../utils/haptics';
@@ -23,6 +24,89 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { addConsumedItem } from '../store/nutritionSlice';
 import { incrementDailyScans } from '../store/subscriptionSlice';
 import type { Food } from '../store/nutritionSlice';
+
+const GEMINI_API_KEY = process.env.GOOGLE_AI_API_KEY ?? '';
+const GEMINI_FLASH_ENDPOINT = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+interface GeminiNutritionResponse {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+async function analyzeImageWithGemini(imageUri: string): Promise<GeminiNutritionResponse> {
+  const manipulated = await ImageManipulator.manipulateAsync(
+    imageUri,
+    [{ resize: { width: 768 } }],
+    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+
+  if (!manipulated.base64) {
+    throw new Error('Failed to encode image as base64');
+  }
+
+  const response = await fetch(GEMINI_FLASH_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: 'Analyze this food image. Return ONLY a valid JSON object with these exact keys: "name" (string, the food name), "calories" (number, estimated total kcal), "protein" (number, grams), "carbs" (number, grams), "fat" (number, grams). No markdown, no explanation, just the JSON object.',
+            },
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: manipulated.base64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 256,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const rawText: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  // Strip markdown code fences if present
+  const cleaned = rawText
+    .replace(/```(?:json)?\s*/gi, '')
+    .replace(/```/g, '')
+    .trim();
+  const parsed = JSON.parse(cleaned) as GeminiNutritionResponse;
+
+  // Validate the required fields exist and are numbers
+  if (
+    typeof parsed.name !== 'string' ||
+    typeof parsed.calories !== 'number' ||
+    typeof parsed.protein !== 'number' ||
+    typeof parsed.carbs !== 'number' ||
+    typeof parsed.fat !== 'number'
+  ) {
+    throw new Error('Invalid nutrition data received from AI');
+  }
+
+  return {
+    name: parsed.name,
+    calories: Math.round(parsed.calories),
+    protein: Math.round(parsed.protein),
+    carbs: Math.round(parsed.carbs),
+    fat: Math.round(parsed.fat),
+  };
+}
 
 const AnalyzingOverlay = (): React.JSX.Element => {
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -194,17 +278,15 @@ const CameraScreen = (): React.JSX.Element => {
       setIsAnalyzing(true);
       dispatch(incrementDailyScans());
 
-      await new Promise<void>(resolve => {
-        setTimeout(resolve, 2500);
-      });
+      const nutrition = await analyzeImageWithGemini(capturedImage);
 
       const foodResult: Food = {
         id: `food-${Date.now()}`,
-        name: 'Grilled Chicken Salad',
-        calories: 350,
-        protein: 35,
-        carbs: 12,
-        fat: 18,
+        name: nutrition.name,
+        calories: nutrition.calories,
+        protein: nutrition.protein,
+        carbs: nutrition.carbs,
+        fat: nutrition.fat,
         imageUrl: capturedImage,
         timestamp: Date.now(),
       };

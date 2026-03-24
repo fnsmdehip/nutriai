@@ -14,10 +14,10 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nutriai.app",
+      "bundleIdentifier": "com.printmaxx.nutriai",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "NutriAI uses your camera to photograph meals and instantly analyze their nutritional content.",
+        "NSCameraUsageDescription": "NutriAI uses your camera to photograph meals and estimate nutritional content including calories, protein, carbs, and fat",
         "NSPhotoLibraryUsageDescription": "NutriAI needs access to your photos to analyze food images for nutrition tracking.",
         "UIRequiresFullScreen": true,
         "UIStatusBarHidden": false,
@@ -26,7 +26,8 @@
             "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
           }
         ],
-        "GADApplicationIdentifier": "ca-app-pub-5277873663568466~6431629011"
+        "GADApplicationIdentifier": "ca-app-pub-5277873663568466~6431629011",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -34,13 +35,12 @@
         "foregroundImage": "./app/assets/adaptive-icon.png",
         "backgroundColor": "#0B1A2E"
       },
-      "package": "com.nutriai.app",
+      "package": "com.printmaxx.nutriai",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO",
         "com.google.android.gms.permission.AD_ID"
       ]
     },
@@ -51,14 +51,18 @@
     "extra": {
       "eas": {
         "projectId": "04c7bff1-f241-49d8-9c24-b4ee680c1579"
-      }
+      },
+      "privacyPolicyUrl": "https://printmaxx.com/privacy",
+      "termsOfServiceUrl": "https://printmaxx.com/tos",
+      "supportUrl": "mailto:support@nutriai.app",
+      "supportEmail": "support@printmaxx.com"
     },
     "runtimeVersion": "1.0.0",
     "updates": {
       "enabled": true,
       "fallbackToCacheTimeout": 0
     },
-    "plugins": ["expo-camera", "expo-image-picker", "expo-font", "expo-haptics"],
+    "plugins": ["expo-camera", "expo-image-picker", "expo-font"],
     "owner": "fnsmdehip",
     "sdkVersion": "51.0.0",
     "appVersionSource": "expo-updates",

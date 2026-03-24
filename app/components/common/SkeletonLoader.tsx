@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, ViewStyle } from 'react-native';
+import { View, Animated, StyleSheet, ViewStyle, Dimensions } from 'react-native';
 import { Theme } from '../../utils/theme';
+
+const CONTENT_WIDTH = Dimensions.get('window').width - 40;
 
 interface SkeletonProps {
   width: number | string;
@@ -40,7 +42,7 @@ export const SkeletonLoader = ({
     <Animated.View
       style={[
         {
-          width: width as number,
+          width,
           height,
           borderRadius,
           backgroundColor: Theme.colors.surface,
@@ -62,16 +64,16 @@ export const HomeSkeleton = (): React.JSX.Element => (
       <SkeletonLoader width={100} height={32} borderRadius={16} />
     </View>
     <SkeletonLoader
-      width={'100%' as unknown as number}
+      width={CONTENT_WIDTH}
       height={160}
       borderRadius={16}
-      style={{ marginHorizontal: 20, marginTop: 16 }}
+      style={{ alignSelf: 'center', marginTop: 16 }}
     />
     <SkeletonLoader
-      width={'100%' as unknown as number}
+      width={CONTENT_WIDTH}
       height={140}
       borderRadius={16}
-      style={{ marginHorizontal: 20, marginTop: 16 }}
+      style={{ alignSelf: 'center', marginTop: 16 }}
     />
     <View style={skeletonStyles.recentHeader}>
       <SkeletonLoader width={140} height={22} borderRadius={6} />
@@ -79,10 +81,10 @@ export const HomeSkeleton = (): React.JSX.Element => (
     {[1, 2, 3].map(i => (
       <SkeletonLoader
         key={i}
-        width={'100%' as unknown as number}
+        width={CONTENT_WIDTH}
         height={68}
         borderRadius={12}
-        style={{ marginHorizontal: 20, marginTop: 10 }}
+        style={{ alignSelf: 'center', marginTop: 10 }}
       />
     ))}
   </View>
@@ -95,22 +97,22 @@ export const AnalyticsSkeleton = (): React.JSX.Element => (
       <SkeletonLoader width={60} height={28} borderRadius={14} />
     </View>
     <SkeletonLoader
-      width={'100%' as unknown as number}
+      width={CONTENT_WIDTH}
       height={44}
       borderRadius={12}
-      style={{ marginHorizontal: 20, marginTop: 8 }}
+      style={{ alignSelf: 'center', marginTop: 8 }}
     />
     <SkeletonLoader
-      width={'100%' as unknown as number}
+      width={CONTENT_WIDTH}
       height={220}
       borderRadius={16}
-      style={{ marginHorizontal: 20, marginTop: 20 }}
+      style={{ alignSelf: 'center', marginTop: 20 }}
     />
     <SkeletonLoader
-      width={'100%' as unknown as number}
+      width={CONTENT_WIDTH}
       height={200}
       borderRadius={16}
-      style={{ marginHorizontal: 20, marginTop: 20 }}
+      style={{ alignSelf: 'center', marginTop: 20 }}
     />
     <View style={skeletonStyles.statsRow}>
       <SkeletonLoader width={100} height={100} borderRadius={12} />
