@@ -166,7 +166,7 @@ const CameraScreen = (): React.JSX.Element => {
   const pickFromGallery = useCallback(async (): Promise<void> => {
     haptics.light();
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
       allowsEditing: true,
       aspect: [1, 1],
